@@ -1,10 +1,10 @@
-package com.liamxsage.boilerplates.extensions
+package dev.rm20.mcfireworkshow.extensions
 
-import com.liamxsage.boilerplates.PaperBoilerplate
+import dev.rm20.mcfireworkshow.MCFireworkShow
 import org.slf4j.LoggerFactory
 
 fun getLogger(): org.slf4j.Logger {
-    return LoggerFactory.getLogger(PaperBoilerplate::class.java)
+    return LoggerFactory.getLogger(MCFireworkShow::class.java)
 }
 
 fun <T : Any> T.nullIf(condition: (T) -> Boolean): T? {

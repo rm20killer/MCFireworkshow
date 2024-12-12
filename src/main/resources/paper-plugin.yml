@@ -1,8 +1,9 @@
-name: PaperBoilerplate
-main: com.liamxsage.boilerplates.PaperBoilerplate
+name: MCFireworkshow
+main: dev.rm20.mcfireworkshow.MCFireworkShow
 version: ${version}
-description: "This is a template for a new plugin based on Paper and the new Minecraft API."
-author: "LiamXSage"
+description: "Minecraft firework show plugin"
+author: "RM20"
 api-version: "1.21"
-loader: com.liamxsage.boilerplates.DependencyLoader
-bootstrapper: com.liamxsage.boilerplates.CommandBootstrapper
+loader: dev.rm20.mcfireworkshow.DependencyLoader
+bootstrapper: dev.rm20.mcfireworkshow.CommandBootstrapper
+depend: [EffectMaster]

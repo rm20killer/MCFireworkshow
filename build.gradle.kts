@@ -1,21 +1,14 @@
-import org.gradle.kotlin.dsl.invoke
-import java.util.Calendar
-import java.util.TimeZone
-
 plugins {
     kotlin("jvm") version "2.0.0"
     id("io.papermc.paperweight.userdev") version "1.7.1"
-    kotlin("plugin.serialization") version "2.0.0"
+    kotlin("plugin.serialization") version "2.0.20"
 }
 
 val pluginVersion: String by project
 
-val dailyVersion = Calendar.getInstance(TimeZone.getTimeZone("Europe/Berlin")).run {
-    "${get(Calendar.YEAR)}.${get(Calendar.MONTH) + 1}.${get(Calendar.DAY_OF_MONTH)}"
-}
 
-group = "com.liamxsage.boilerplates"
-version = "$pluginVersion-$dailyVersion"
+group = "dev.rm20.mcfireworkshow"
+version = "$pluginVersion-Snapshot"
 
 val minecraftVersion: String by project
 val slf4jVersion: String by project
@@ -34,6 +27,10 @@ val mcCoroutineVersion: String by project
 
 repositories {
     maven("https://nexus.modlabs.cc/repository/maven-mirrors/")
+    maven {
+        url = uri("https://jitpack.io")
+    }
+    mavenCentral()
 }
 
 val deliverDependencies = listOf(
@@ -64,8 +61,10 @@ dependencies {
 
     compileOnly("me.clip:placeholderapi:2.11.6")
 
+    implementation("com.github.M64DiamondStar:EffectMaster:1.4.5")
     implementation(kotlin("stdlib")).deliver()
     implementation(kotlin("reflect")).deliver()
+    implementation("com.google.code.gson:gson:2.11.0")
 
     deliverDependencies.forEach { dependency ->
         implementation(dependency).deliver()

@@ -3,7 +3,7 @@ name: Feature request
 about: Suggest an idea for this project
 title: "\U0001F343Feature short description"
 labels: enhancement
-assignees: CoasterFreakDE
+assignees: rm20killer
 
 ---
 

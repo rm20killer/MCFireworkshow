@@ -1,0 +1,60 @@
+show-name: "My Epic Firework Show"
+music: "music1.ogg"
+frames:
+  0: # Frame 0 (start)
+    actions:
+      - type: "firework"
+        location:
+          x: 100
+          y: 64
+          z: 200
+        nbt: # NBT data for the firework
+          Fireworks:
+            Explosions:
+              - Colors: [16711680] # Red
+                Type: "CREEPER"
+                Flicker: 1
+                Trail: 1
+        forces: # Optional forces to apply (e.g., explosion force)
+          x: 0
+          y: 1
+          z: 0
+  20: # Frame 20 (1 second)
+    actions:
+      - type: "command"
+        command: "say One second has passed!"
+      - type: "firework"
+        location:
+          x: 120
+          y: 70
+          z: 220
+        nbt:
+          Fireworks:
+            Explosions:
+              - Colors: [255, 255] # White
+                Type: "STAR"
+        forces:
+          x: 0
+          y: 2
+          z: 0
+      - type: "endcrystal"
+        location:
+          x: 120
+          y: 80
+          z: 220
+        beamtarget: # Optional beam target
+          x: 150
+          y: 100
+          z: 250
+  40: # Frame 40 (2 seconds)
+    actions: # Example of multiple fireworks at the same time
+      - type: "firework"
+        location:
+          x: 90
+          y: 60
+          z: 190
+        nbt:
+          Fireworks:
+            Explosions:
+              - Colors: [0, 255, 0] # Green
+                Type: "BURST"

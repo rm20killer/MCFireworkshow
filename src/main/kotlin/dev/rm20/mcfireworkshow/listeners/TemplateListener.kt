@@ -1,4 +1,4 @@
-package com.liamxsage.boilerplates.listeners
+package dev.rm20.mcfireworkshow.listeners
 
 import dev.fruxz.stacked.text
 import org.bukkit.event.EventHandler

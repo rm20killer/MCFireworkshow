@@ -1,7 +1,7 @@
-package com.liamxsage.boilerplates.extensions
+package dev.rm20.mcfireworkshow.extensions
 
-import com.liamxsage.boilerplates.BLOCK_PREFIX
-import com.liamxsage.boilerplates.PREFIX
+import dev.rm20.mcfireworkshow.BLOCK_PREFIX
+import dev.rm20.mcfireworkshow.PREFIX
 import dev.fruxz.stacked.text
 import org.bukkit.*
 import org.bukkit.command.CommandSender

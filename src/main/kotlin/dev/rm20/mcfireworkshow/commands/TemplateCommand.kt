@@ -1,10 +1,10 @@
-package com.liamxsage.boilerplates.commands
+package dev.rm20.mcfireworkshow.commands
 
-import com.liamxsage.boilerplates.PREFIX
-import com.liamxsage.boilerplates.interfaces.BrigCommand
 import com.mojang.brigadier.Command
 import com.mojang.brigadier.tree.LiteralCommandNode
 import dev.fruxz.stacked.text
+import dev.rm20.mcfireworkshow.PREFIX
+import dev.rm20.mcfireworkshow.interfaces.BrigCommand
 import io.papermc.paper.command.brigadier.CommandSourceStack
 import io.papermc.paper.command.brigadier.Commands
 

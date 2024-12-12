@@ -1,4 +1,4 @@
-package com.liamxsage.boilerplates;
+package dev.rm20.mcfireworkshow;
 
 import io.papermc.paper.plugin.loader.PluginClasspathBuilder;
 import io.papermc.paper.plugin.loader.PluginLoader;

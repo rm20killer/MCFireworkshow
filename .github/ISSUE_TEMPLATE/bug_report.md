@@ -3,7 +3,7 @@ name: Bug report
 about: Create a report to help us improve
 title: "\U0001FAB2 Bug short description"
 labels: bug
-assignees: CoasterFreakDE
+assignees: rm20killer
 
 ---
 

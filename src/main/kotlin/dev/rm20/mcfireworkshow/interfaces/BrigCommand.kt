@@ -1,4 +1,4 @@
-package com.liamxsage.boilerplates.interfaces
+package dev.rm20.mcfireworkshow.interfaces
 
 import com.mojang.brigadier.tree.LiteralCommandNode
 import io.papermc.paper.command.brigadier.CommandSourceStack

@@ -1,6 +1,6 @@
-package com.liamxsage.boilerplates
+package dev.rm20.mcfireworkshow
 
-import com.liamxsage.boilerplates.managers.RegisterManager
+import dev.rm20.mcfireworkshow.managers.RegisterManager
 import io.papermc.paper.plugin.bootstrap.BootstrapContext
 import io.papermc.paper.plugin.bootstrap.PluginBootstrap
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents

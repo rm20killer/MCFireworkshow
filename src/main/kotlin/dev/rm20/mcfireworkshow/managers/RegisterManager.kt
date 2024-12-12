@@ -1,9 +1,9 @@
-package com.liamxsage.boilerplates.managers
+package dev.rm20.mcfireworkshow.managers
 
 import com.google.common.reflect.ClassPath
-import com.liamxsage.boilerplates.PACKAGE_NAME
-import com.liamxsage.boilerplates.extensions.getLogger
-import com.liamxsage.boilerplates.interfaces.BrigCommand
+import dev.rm20.mcfireworkshow.PACKAGE_NAME
+import dev.rm20.mcfireworkshow.extensions.getLogger
+import dev.rm20.mcfireworkshow.interfaces.BrigCommand
 import io.papermc.paper.command.brigadier.Commands
 import org.bukkit.Bukkit
 import org.bukkit.event.Listener
@@ -15,7 +15,10 @@ object RegisterManager {
 
     private val logger = getLogger()
 
-    private fun <T : Any, E: Any> E.loadClassesInPackage(packageName: String, clazzType: KClass<T>): List<KClass<out T>> {
+    private fun <T : Any, E : Any> E.loadClassesInPackage(
+        packageName: String,
+        clazzType: KClass<T>
+    ): List<KClass<out T>> {
         try {
             val classLoader = this.javaClass.classLoader
             val allClasses = ClassPath.from(classLoader).allClasses
@@ -56,7 +59,7 @@ object RegisterManager {
             logger.info("Command ${it.simpleName} registered")
         }
 
-        logger.info("Registered ${commandClasses.size} minecraft commands")
+        logger.info("Registered ${commandClasses.size} commands")
     }
 
     fun registerListeners(plugin: Plugin) {
