@@ -13,14 +13,23 @@ import dev.rm20.mcfireworkshow.PREFIX
 import dev.rm20.mcfireworkshow.show.Actions.CommandAction
 import dev.rm20.mcfireworkshow.show.Actions.FireworkAction
 import dev.rm20.mcfireworkshow.show.Actions.MusicAction
+import me.clip.placeholderapi.libs.kyori.adventure.audience.Audience
+import me.clip.placeholderapi.libs.kyori.adventure.bossbar.BossBar
+import me.clip.placeholderapi.libs.kyori.adventure.text.Component
+
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.scheduler.BukkitRunnable
 import java.io.File
 
 
-
 class ShowManager(private val fireworkPlugin: MCFireworkShow) {
+
+    /**
+     * Starts a firework show by loading and parsing the show file, and then scheduling the execution of frames.
+     * @param showName The name of the show to start.
+     * @param sender The command sender who initiated the show.
+     */
     fun startShow(showName: String, sender: CommandSender) {
         // 1. Load the show file (e.g., "shows/Grand Finale.yml")
         val showFile = File(fireworkPlugin.dataFolder, "shows/$showName.json")
@@ -51,15 +60,20 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
             return
         }
 
+        // Display show information to the sender
         sender.sendMessage(text(BLOCK_PREFIX))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Name:  <white>${fireworkShow.showName}"))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>frames Loaded: <white>${frames.size}"))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total Action: <white>${getTotalActions(fireworkShow)}"))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total time: <white>$biggestFrameSize <color:#b2c2d4>ticks"))
 
-//        Bukkit.getLogger().info("frame: $frames")
+
+
+        // Start playing music associated with the show
         var musicAction = MusicAction()
         musicAction.playMusic(fireworkShow.music)
+
+        // Schedule the execution of frames using BukkitRunnable
         object : BukkitRunnable() {
             var currentFrame = 0
             override fun run() {
@@ -78,6 +92,10 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
         }.runTaskTimer(fireworkPlugin, 0L, 1L)
     }
 
+    /**
+     * Plays a single frame of the show by executing the actions within the frame.
+     * @param actions The list of actions to execute for the frame.
+     */
     private fun playFrame(actions: List<Action>) {
 
         Bukkit.getLogger().info("frame to RUN: $actions")
@@ -102,6 +120,12 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
         }
 
     }
+
+    /**
+     * Calculates the total number of actions in a show.
+     * @param show The show object.
+     * @return The total number of actions in the show.
+     */
     fun getTotalActions(show: Show): Int {
         return show.frames.values.sumOf { it.actions.size }
     }

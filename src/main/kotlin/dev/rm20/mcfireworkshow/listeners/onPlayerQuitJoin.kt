@@ -6,7 +6,7 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.event.player.PlayerQuitEvent
 
-class TemplateListener : Listener {
+class onPlayerQuitJoin : Listener {
 
     @EventHandler
     fun onPlayerJoin(event: PlayerJoinEvent) {

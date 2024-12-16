@@ -2,27 +2,28 @@ package dev.rm20.mcfireworkshow.show.Actions
 
 
 import Music
-import net.kyori.adventure.audience.Audience
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.sound.Sound
 import net.kyori.adventure.sound.SoundStop
-import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.minimessage.MiniMessage
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.minimessage.tag.standard.StandardTags
-import net.kyori.adventure.title.Title
-import net.md_5.bungee.api.ChatMessageType
-import net.md_5.bungee.api.chat.TextComponent
 import org.bukkit.Bukkit
-import org.checkerframework.checker.units.qual.C
-import java.util.*
 
-
+/**
+ * Handles music-related actions, such as playing and stopping music.
+ */
 class MusicAction {
+
+
+    /**
+     * Plays music for all online players.
+     * @param music The music object containing the music ID, name, and author.
+     */
     fun playMusic(music: Music) {
         // Create a Sound object
         val sound: Sound = Sound.sound(
-            Key.key("minecraft", music.musicID),
+            Key.key(music.musicID),
             Sound.Source.MASTER,
             1.0f,
             1.0f
@@ -44,8 +45,12 @@ class MusicAction {
 
     }
 
+    /**
+     * Stops music for all online players.
+     * @param musicName The name of the music to stop.
+     */
     fun stopMusic(musicName: String) {
-        val stopSound: SoundStop = SoundStop.named(Key.key("minecraft", musicName))
+        val stopSound: SoundStop = SoundStop.named(Key.key(musicName))
         Bukkit.getOnlinePlayers().forEach { player ->
             player.stopSound(stopSound);
         }

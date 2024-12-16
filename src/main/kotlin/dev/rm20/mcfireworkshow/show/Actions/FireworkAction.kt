@@ -5,17 +5,24 @@ import org.bukkit.*
 import org.bukkit.entity.Firework
 import org.bukkit.util.Vector
 
-
+/**
+ * Handles the spawning and detonation of fireworks.
+ */
 class FireworkAction {
+
+    /**
+     * Spawns a firework with the specified properties and detonates it.
+     * @param fireworkData The data containing the firework's location, NBT data, and optional forces.
+     */
     fun spawnFirework(fireworkData: ActionData.FireworksData) {
         // Get the world from the provided location
 
         val world: World? = Bukkit.getWorld("world")
         val location = Location(
             world,
-            fireworkData.location.x.toDouble(),
-            fireworkData.location.y.toDouble(),
-            fireworkData.location.z.toDouble()
+            fireworkData.location.x,
+            fireworkData.location.y,
+            fireworkData.location.z
         )
 
 
@@ -42,11 +49,19 @@ class FireworkAction {
 
         //apply force
         val forceVector = Vector(
-            fireworkData.forces?.x?.toDouble() ?: 0.0,
-            fireworkData.forces?.y?.toDouble() ?: 0.0,
-            fireworkData.forces?.z?.toDouble() ?: 0.0
+            fireworkData.forces?.x ?: 0.0,
+            fireworkData.forces?.y ?: 0.0,
+            fireworkData.forces?.z ?: 0.0
+        )
+        val i = fireworkData.forces?.i ?: 1.0 // Default to 1.0 if i is null
+
+        firework.velocity = Vector(
+            forceVector.x * i,
+            forceVector.y * i,
+            forceVector.z * i
         )
         firework.velocity = forceVector
+        // Detonate the firework immediately
         firework.detonate()
 
     }

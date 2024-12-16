@@ -1,6 +1,8 @@
+
+import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
-import com.google.gson.*
+import com.google.gson.JsonParseException
 import com.google.gson.annotations.SerializedName
 import java.lang.reflect.Type
 
@@ -41,12 +43,22 @@ sealed class ActionData {
         val Name: String,
         val Author: String
     ): ActionData()
+
+    data class LightData(
+        val location: Location,
+        val lit: Boolean
+    ): ActionData()
+
+    data class EffectMasterData(
+        val location: Location,
+
+    )
 }
 
 data class Location(
-    val x: Int,
-    val y: Int,
-    val z: Int
+    val x: Double,
+    val y: Double,
+    val z: Double
 )
 
 data class Nbt(
@@ -65,16 +77,18 @@ data class Explosion(
 )
 
 data class Forces(
-    val x: Int,
-    val y: Int,
-    val z: Int
-)
-
-data class CommandData(
-    val command: String
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val i: Double
 )
 
 
+/**
+ * Custom deserializer for Action objects.
+ * This class handles the deserialization of JSON data into Action objects,
+ * specifically addressing the different types of ActionData based on the "type" field.
+ */
 class ActionDeserializer : JsonDeserializer<Action> {
     override fun deserialize(
         json: JsonElement,
@@ -95,7 +109,11 @@ class ActionDeserializer : JsonDeserializer<Action> {
             "music" -> {
                 context!!.deserialize(data, ActionData.MusicData::class.java)
             }
+            "light" ->{
+                context!!.deserialize(data, ActionData.LightData::class.java)
+            }
             else -> throw JsonParseException("Unknown action type: $type")
+
         }
 
         return Action(type, actionData)
