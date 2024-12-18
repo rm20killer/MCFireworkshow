@@ -51,8 +51,9 @@ sealed class ActionData {
 
     data class EffectMasterData(
         val location: Location,
-
-    )
+        val category: String,
+        val name: String
+    ): ActionData()
 }
 
 data class Location(
@@ -111,6 +112,9 @@ class ActionDeserializer : JsonDeserializer<Action> {
             }
             "light" ->{
                 context!!.deserialize(data, ActionData.LightData::class.java)
+            }
+            "effect" ->{
+                context!!.deserialize(data, ActionData.EffectMasterData::class.java)
             }
             else -> throw JsonParseException("Unknown action type: $type")
 

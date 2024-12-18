@@ -27,9 +27,10 @@ class MCFireworkShow : JavaPlugin() {
             RegisterManager.registerListeners(this)
         }
         this.saveDefaultConfig();
-        showManager = ShowManager(this);
+        showManager = ShowManager(this)
         logger.info("Plugin enabled in $time ms")
-        logger.info("PaperBoilerplate is now tweaking your vanilla behavior!")
+
+
     }
 
 }

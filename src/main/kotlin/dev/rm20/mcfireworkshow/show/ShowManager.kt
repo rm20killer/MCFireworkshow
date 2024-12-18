@@ -10,13 +10,7 @@ import dev.fruxz.stacked.text
 import dev.rm20.mcfireworkshow.BLOCK_PREFIX
 import dev.rm20.mcfireworkshow.MCFireworkShow
 import dev.rm20.mcfireworkshow.PREFIX
-import dev.rm20.mcfireworkshow.show.Actions.CommandAction
-import dev.rm20.mcfireworkshow.show.Actions.FireworkAction
-import dev.rm20.mcfireworkshow.show.Actions.MusicAction
-import me.clip.placeholderapi.libs.kyori.adventure.audience.Audience
-import me.clip.placeholderapi.libs.kyori.adventure.bossbar.BossBar
-import me.clip.placeholderapi.libs.kyori.adventure.text.Component
-
+import dev.rm20.mcfireworkshow.show.Actions.*
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.scheduler.BukkitRunnable
@@ -112,7 +106,16 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
                     val firework = action.data
                     fireworkAction.spawnFirework(firework)
                 }
-
+                is ActionData.LightData -> {
+                    val lightAction = LightAction()
+                    val light = action.data
+                    lightAction.LightController(light)
+                }
+                is ActionData.EffectMasterData -> {
+                    val effectMasterAction = EffectMasterAction()
+                    val effect = action.data
+                    effectMasterAction.playEffectM(effect)
+                }
                 else -> {
                     return
                 }

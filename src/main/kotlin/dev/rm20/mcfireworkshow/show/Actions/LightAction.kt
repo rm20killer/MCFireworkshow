@@ -11,22 +11,18 @@ class LightAction {
         val world: World? = Bukkit.getWorld("world")
         val location = org.bukkit.Location(
             world,
+            lightData.location.x,
             lightData.location.y,
             lightData.location.z,
-            lightData.location.x,
         )
-        if(location.block !=null)
+
+        Bukkit.getLogger().info("changing lit of: $location which is ${(location.block.getType())}")
+        if(location.block.getType()==Material.REDSTONE_LAMP)
         {
-            if(location.block.getType()==Material.REDSTONE_LAMP)
-            {
-                val data = location.block.blockData as org.bukkit.block.data.Lightable
-                data.isLit = lightData.lit
-                location.block.blockData = data
-            }
+            val data = location.block.blockData as org.bukkit.block.data.Lightable
+            data.isLit = lightData.lit
+            location.block.blockData = data
         }
-
-
-
 
     }
 }
