@@ -30,7 +30,6 @@ class MCFireworkShow : JavaPlugin() {
         showManager = ShowManager(this)
         logger.info("Plugin enabled in $time ms")
 
-
     }
 
 }

@@ -11,6 +11,7 @@ import dev.rm20.mcfireworkshow.BLOCK_PREFIX
 import dev.rm20.mcfireworkshow.MCFireworkShow
 import dev.rm20.mcfireworkshow.PREFIX
 import dev.rm20.mcfireworkshow.show.Actions.*
+import net.kyori.adventure.text.minimessage.MiniMessage
 import org.bukkit.Bukkit
 import org.bukkit.command.CommandSender
 import org.bukkit.scheduler.BukkitRunnable
@@ -43,7 +44,7 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
 
 
         Bukkit.getLogger().warning("loading: ${showFile.path}")
-        Bukkit.getLogger().warning("$fireworkShow")
+//        Bukkit.getLogger().warning("$fireworkShow")
 
         //3. Extract show data
         val frames = fireworkShow.frames
@@ -110,6 +111,14 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
                     val lightAction = LightAction()
                     val light = action.data
                     lightAction.LightController(light)
+                }
+                is ActionData.MusicData -> {
+                    val music = action.data
+                    Bukkit.getOnlinePlayers().forEach { player ->
+                        val miniMessage = MiniMessage.miniMessage()
+                        var parsed= miniMessage.deserialize("<yellow>Now Playing <#4cf005>${music.Name}</#4cf005> by <aqua>${music.Author}</aqua>")
+                        player.sendActionBar(parsed)
+                    }
                 }
                 is ActionData.EffectMasterData -> {
                     val effectMasterAction = EffectMasterAction()

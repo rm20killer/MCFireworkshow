@@ -2,27 +2,23 @@ plugins {
     kotlin("jvm") version "2.0.0"
     id("io.papermc.paperweight.userdev") version "1.7.2"
     kotlin("plugin.serialization") version "2.0.20"
+    id("com.gradleup.shadow") version "9.0.0-beta4"
+    id("java")
+
 }
-
+//plugin info
 val pluginVersion: String by project
-
-
 group = "dev.rm20.mcfireworkshow"
 version = "$pluginVersion-Snapshot"
-
+//dep version from gradle.properties
 val minecraftVersion: String by project
 val slf4jVersion: String by project
-
 val dotenvKotlinVersion: String by project
-
 val fruxzAscendVersion: String by project
 val fruxzStackedVersion: String by project
-
 val kotlinxCoroutinesCoreVersion: String by project
 val kotlinxCollectionsImmutableVersion: String by project
-
 val gsonVersion: String by project
-
 val mcCoroutineVersion: String by project
 
 repositories {
@@ -59,10 +55,7 @@ fun Dependency?.deliver() = this?.apply {
 
 dependencies {
     paperweight.paperDevBundle("$minecraftVersion-R0.1-SNAPSHOT")
-
     compileOnly("me.clip:placeholderapi:2.11.6")
-
-    implementation("com.github.M64DiamondStar:EffectMaster:1.4.5")
     implementation(kotlin("stdlib")).deliver()
     implementation(kotlin("reflect")).deliver()
     implementation("com.google.code.gson:gson:2.11.0")
@@ -72,6 +65,11 @@ dependencies {
     }
 }
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
 tasks.register("generateDependenciesFile") {
     group = "build"
     description = "Writes dependencies to file"
@@ -84,8 +82,10 @@ tasks.register("generateDependenciesFile") {
     }
 }
 
-
 tasks {
+    shadowJar {
+        archiveFileName.set("MCFireworkShow-$pluginVersion.jar")
+    }
     build {
         dependsOn(reobfJar)
     }

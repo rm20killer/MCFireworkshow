@@ -6,4 +6,3 @@ author: "RM20"
 api-version: "1.21"
 loader: dev.rm20.mcfireworkshow.DependencyLoader
 bootstrapper: dev.rm20.mcfireworkshow.CommandBootstrapper
-depend: [EffectMaster]
