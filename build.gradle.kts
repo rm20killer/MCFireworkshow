@@ -1,16 +1,14 @@
 plugins {
     kotlin("jvm") version "2.0.0"
-    id("io.papermc.paperweight.userdev") version "1.7.2"
-    kotlin("plugin.serialization") version "2.0.20"
-    id("com.gradleup.shadow") version "9.0.0-beta4"
-    id("java")
-
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.17"
+    kotlin("plugin.serialization") version "2.0.0"
 }
-//plugin info
+
+
 val pluginVersion: String by project
 group = "dev.rm20.mcfireworkshow"
 version = "$pluginVersion-Snapshot"
-//dep version from gradle.properties
+
 val minecraftVersion: String by project
 val slf4jVersion: String by project
 val dotenvKotlinVersion: String by project
@@ -28,6 +26,10 @@ repositories {
         url = uri("https://jitpack.io")
     }
     mavenCentral()
+    flatDir {
+        dirs("libs")
+    }
+    maven("https://libraries.minecraft.net/")
 }
 
 val deliverDependencies = listOf(
@@ -44,6 +46,7 @@ val deliverDependencies = listOf(
 
     "io.github.cdimascio:dotenv-kotlin:$dotenvKotlinVersion", // - .env support
     "org.slf4j:slf4j-api:$slf4jVersion",
+    "fr.skytasul:guardianbeam:2.4.4"
 )
 
 val includedDependencies = mutableListOf<String>()
@@ -55,21 +58,17 @@ fun Dependency?.deliver() = this?.apply {
 
 dependencies {
     paperweight.paperDevBundle("$minecraftVersion-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.5-R0.1-SNAPSHOT")
     compileOnly("me.clip:placeholderapi:2.11.6")
     implementation(kotlin("stdlib")).deliver()
     implementation(kotlin("reflect")).deliver()
-    implementation("com.google.code.gson:gson:2.11.0")
-
     deliverDependencies.forEach { dependency ->
         implementation(dependency).deliver()
     }
+
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
 tasks.register("generateDependenciesFile") {
     group = "build"
     description = "Writes dependencies to file"
@@ -83,11 +82,8 @@ tasks.register("generateDependenciesFile") {
 }
 
 tasks {
-    shadowJar {
-        archiveFileName.set("MCFireworkShow-$pluginVersion.jar")
-    }
     build {
-        dependsOn(reobfJar)
+        paperweight.reobfArtifactConfiguration = io.papermc.paperweight.userdev.ReobfArtifactConfiguration.MOJANG_PRODUCTION
     }
 
     withType<ProcessResources> {
@@ -111,6 +107,12 @@ tasks {
         destinationDirectory.set(file("build/classes/kotlin/main"))
         options.release.set(21)
     }
+    jar {
+        from(zipTree("libs/particlesfx-1.21.jar")) {
+            exclude("META-INF/**")
+        }
+    }
+
 }
 
 configure<SourceSetContainer> {
