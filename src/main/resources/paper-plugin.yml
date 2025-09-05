@@ -6,3 +6,14 @@ author: "RM20"
 api-version: "1.21"
 loader: dev.rm20.mcfireworkshow.DependencyLoader
 bootstrapper: dev.rm20.mcfireworkshow.CommandBootstrapper
+dependencies:
+  bootstrap:
+    FastAsyncWorldEdit:
+      load: AFTER
+      required: false
+      join-classpath: true
+  server:
+    FastAsyncWorldEdit:
+      load: AFTER
+      required: false
+      join-classpath: true

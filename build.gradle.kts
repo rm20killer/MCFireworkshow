@@ -22,6 +22,7 @@ val mcCoroutineVersion: String by project
 repositories {
     maven("https://nexus.modlabs.cc/repository/maven-mirrors/")
     maven(url = "https://repo.papermc.io/repository/maven-public/")
+    maven("https://maven.enginehub.org/repo/")
     maven {
         url = uri("https://jitpack.io")
     }
@@ -65,7 +66,8 @@ dependencies {
     deliverDependencies.forEach { dependency ->
         implementation(dependency).deliver()
     }
-
+    implementation(platform("com.intellectualsites.bom:bom-newest:1.55"))
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Core")
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 }
 

@@ -5,7 +5,12 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonParseException
 import com.google.gson.annotations.SerializedName
 import java.lang.reflect.Type
-
+data class SavedEffect(
+    val name: String,
+    val description: String,
+    val facing: String, // Default orientation: north, east, south, west
+    val frames: Map<String, Frame>
+)
 data class Show(
     val showName: String,
     val music: Music,
@@ -67,11 +72,19 @@ data class Frame(
 )
 
 data class Action(
+    val id: String? = null,
     val type: String,
     val data: ActionData
 )
 
 sealed class ActionData {
+
+    data class PlayEffectData(
+        val effectName: String, // The name of the file in the /effects/ folder without .json
+        val location: Location,   // The world location to play the effect at
+        val rotation: String? = null, // Optional: "north", "east", "south", "west" to override the effect's default facing
+        val particleOverrides: Map<String, String>? = null
+    ) : ActionData()
 
     data class FireworksData(
         val location: Location,
@@ -190,7 +203,18 @@ sealed class ActionData {
     data class ParticleEffectActionData(
         val effect: ParticleEffectData
     ) : ActionData()
+    data class PlaceSchematicData(
+        val schematicName: String,
+        val location: Location,
+        val animation: SchematicAnimation? = null // Animation is optional
+    ) : ActionData()
+
 }
+data class SchematicAnimation(
+    val mode: String, // e.g., "bottom_up", "top_down", "sweep_x", "random", "none"
+    val duration: Int // The total time in ticks for the animation to complete
+)
+
 sealed interface ParticleEffectData {
     val particleType: String // Common property for all effects
 
@@ -231,9 +255,13 @@ sealed interface ParticleEffectData {
     data class FountainData(
         override val particleType: String,
         val location: Location,
-        val forces: Forces,
-        val randomness: Double = 1.0,
-
+        val material: String, // The item material, e.g., "DIAMOND"
+        val itemModel: String? = null, // Optional custom model data
+        val velocity: Location, // The base velocity vector for the items
+        val duration: Int = 20, // How long the fountain spawns items (in ticks)
+        val amount: Int = 1, // Number of items to spawn each tick
+        val lifetime: Int = 40, // How long each item exists before removal (in ticks)
+        val randomizer: Double = 0.0 // Adds randomness to the velocity
     ): ParticleEffectData
 }
 sealed interface Shape{
@@ -350,8 +378,12 @@ class ActionDeserializer : JsonDeserializer<Action> {
         val jsonObject = json.asJsonObject
         val type = jsonObject.get("type").asString
         val data = jsonObject.get("data").asJsonObject
+        val id = jsonObject.get("id")?.asString
 
         val actionData: ActionData = when (type) {
+            "play_effect" -> {
+                context!!.deserialize(data, ActionData.PlayEffectData::class.java)
+            }
             "firework" -> {
                 context!!.deserialize(data, ActionData.FireworksData::class.java)
             }
@@ -422,6 +454,7 @@ class ActionDeserializer : JsonDeserializer<Action> {
                     "bust" -> context!!.deserialize(effectObject, ParticleEffectData.BustData::class.java)
                     "laser" -> context!!.deserialize(effectObject, ParticleEffectData.LaserData::class.java)
                     "area" -> context!!.deserialize(effectObject, ParticleEffectData.AreaData::class.java)
+                    "fountain" -> context!!.deserialize(effectObject, ParticleEffectData.FountainData::class.java)
                     else -> throw JsonParseException("Unknown particle effect type: $effectType")
                 }
                 ActionData.ParticleEffectActionData(effectData)
@@ -431,10 +464,13 @@ class ActionDeserializer : JsonDeserializer<Action> {
                 context!!.deserialize(data, ActionData.ModelData::class.java)
             }
 
+            "place_schematic" -> {
+                context!!.deserialize(data, ActionData.PlaceSchematicData::class.java)
+            }
             else -> throw JsonParseException("Unknown action type: $type")
 
         }
 
-        return Action(type, actionData)
+        return Action(id,type, actionData)
     }
 }

@@ -23,6 +23,8 @@ import java.io.File
 class ShowManager(private val fireworkPlugin: MCFireworkShow) {
     //set up stage manager
     private val stageManager = StageManager()
+    private val effectManager = EffectManager(fireworkPlugin, this)
+    private var currentShow: Show? = null
     /**
      * Starts a firework show by loading and parsing the show file, and then scheduling the execution of frames.
      * @param showName The name of the show to start.
@@ -65,7 +67,7 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total Action: <white>${getTotalActions(fireworkShow)}"))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total time: <white>$biggestFrameSize <color:#b2c2d4>ticks"))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total Lasers: <white>${fireworkShow.stage.lasers.size} <color:#b2c2d4>Lasers"))
-
+        currentShow=fireworkShow
 
         // Start playing music associated with the show
         val musicAction = MusicAction()
@@ -119,83 +121,99 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
      * @param actions The list of actions to execute for the frame.
      */
     private fun playFrame(actions: List<Action>, show: Show) {
-
         Bukkit.getLogger().info("frame to RUN: $actions")
         actions.forEach { action ->
-            when (action.data) {
-                is ActionData.CommandData -> {
-                    val commandAction = CommandAction()
-                    val command = action.data.command
-                    commandAction.runCommand(command)
-                    Bukkit.getLogger().info("running $command")
-                }
-                is ActionData.FireworksData -> {
-                    val fireworkAction = FireworkAction()
-                    val firework = action.data
-                    fireworkAction.spawnFirework(firework)
-                }
-                is ActionData.LightData -> {
-                    val lightAction = LightAction()
-                    val light = action.data
-                    lightAction.LightController(light)
-                }
-                is ActionData.GuardianLaserData -> {
-                    val guardianLaserAction = GuardianLaserAction()
-                    val laserData = action.data
-                    guardianLaserAction.handleLaserAction(laserData, show.stage.lasers)
-                }
-                is ActionData.CrystalLaserData -> {
-                    val crystalLaserAction = CrystalLaserAction()
-                    val laserData = action.data
-                    crystalLaserAction.handleLaserAction(laserData, show.stage.lasers)
-                }
-                is ActionData.MusicData -> {
-                    val music = action.data
-                    Bukkit.getOnlinePlayers().forEach { player ->
-                        val miniMessage = MiniMessage.miniMessage()
-                        var parsed= miniMessage.deserialize("<yellow>Now Playing <#4cf005>${music.Name}</#4cf005> by <aqua>${music.Author}</aqua>")
-                        player.sendActionBar(parsed)
-                    }
-                }
-                is ActionData.EffectMasterData -> {
-                    val effectMasterAction = EffectMasterAction()
-                    val effect = action.data
-                    effectMasterAction.playEffectM(effect)
-                }
-                is ActionData.ParticleTextData -> {
-                    val textAction = TextAction()
-                    val textData = action.data
-                    textAction.displayText(textData)
-                }
-                is ActionData.DisplayTextData -> {
-                    val particleAction = DisplayTextAction()
-                    val particleData = action.data
-                    particleAction.handleDisplayText(particleData)
-                }
-                is ActionData.ModelData -> {
-                    val modelAction = ModelAction()
-                    val modelData = action.data
-                    modelAction.spawnModel(modelData)
-                }
-                is ActionData.ParticleShapeData -> {
-                    val particleShapeAction = ParticleShapeAction()
-                    val shapeData = action.data
-                    particleShapeAction.handleParticleShape(shapeData)
-                }
-                is ActionData.ParticleEffectActionData -> {
-                    val particleEffectAction = ParticleEffectAction()
-                    val particleData = action.data
-                    particleEffectAction.handleParticleEffect(particleData)
-                }
-
-                else -> {
-                    return
+            executeAction(action)
+        }
+    }
+    /**
+     * Executes a single action. This logic is now centralized so it can be called
+     * from a Show or a saved Effect.
+     * @param action The action to execute.
+     * @param show The parent show context, which can be null if called from an effect.
+     */
+    fun executeAction(action: Action) {
+        if(currentShow==null)
+        {
+            return
+        }
+        when (action.data) {
+            is ActionData.PlayEffectData -> {
+                effectManager.playEffect(action.data)
+            }
+            is ActionData.CommandData -> {
+                val commandAction = CommandAction()
+                val command = action.data.command
+                commandAction.runCommand(command)
+                Bukkit.getLogger().info("running $command")
+            }
+            is ActionData.FireworksData -> {
+                val fireworkAction = FireworkAction()
+                val firework = action.data
+                fireworkAction.spawnFirework(firework)
+            }
+            is ActionData.LightData -> {
+                val lightAction = LightAction()
+                val light = action.data
+                lightAction.LightController(light)
+            }
+            is ActionData.GuardianLaserData -> {
+                val guardianLaserAction = GuardianLaserAction()
+                val laserData = action.data
+                guardianLaserAction.handleLaserAction(laserData, currentShow!!.stage.lasers)
+            }
+            is ActionData.CrystalLaserData -> {
+                val crystalLaserAction = CrystalLaserAction()
+                val laserData = action.data
+                crystalLaserAction.handleLaserAction(laserData, currentShow!!.stage.lasers)
+            }
+            is ActionData.MusicData -> {
+                val music = action.data
+                Bukkit.getOnlinePlayers().forEach { player ->
+                    val miniMessage = MiniMessage.miniMessage()
+                    var parsed= miniMessage.deserialize("<yellow>Now Playing <#4cf005>${music.Name}</#4cf005> by <aqua>${music.Author}</aqua>")
+                    player.sendActionBar(parsed)
                 }
             }
-        }
-
+            is ActionData.EffectMasterData -> {
+                val effectMasterAction = EffectMasterAction()
+                val effect = action.data
+                effectMasterAction.playEffectM(effect)
+            }
+            is ActionData.ParticleTextData -> {
+                val textAction = TextAction()
+                val textData = action.data
+                textAction.displayText(textData)
+            }
+            is ActionData.DisplayTextData -> {
+                val particleAction = DisplayTextAction()
+                val particleData = action.data
+                particleAction.handleDisplayText(particleData)
+            }
+            is ActionData.ModelData -> {
+                val modelAction = ModelAction()
+                val modelData = action.data
+                modelAction.spawnModel(modelData)
+            }
+            is ActionData.ParticleShapeData -> {
+                val particleShapeAction = ParticleShapeAction()
+                val shapeData = action.data
+                particleShapeAction.handleParticleShape(shapeData)
+            }
+            is ActionData.ParticleEffectActionData -> {
+                val particleEffectAction = ParticleEffectAction()
+                val particleData = action.data
+                particleEffectAction.handleParticleEffect(particleData)
+            }
+            is ActionData.PlaceSchematicData -> {
+                val schematicAction = SchematicAction()
+                schematicAction.place(action.data)
+            }
+            else -> {
+                return
+            }
+            }
     }
-
     /**
      * Calculates the total number of actions in a show.
      * @param show The show object.

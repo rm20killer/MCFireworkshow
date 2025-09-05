@@ -1,0 +1,3584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fireworks Show Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
+    <!-- Updated Wavesurfer Scripts -->
+    <script src="https://unpkg.com/wavesurfer.js@7.7.5/dist/wavesurfer.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7.7.5/dist/plugins/spectrogram.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        .timeline-container {
+            position: relative;
+            width: 100%;
+            background-color: #1f2937;
+            overflow-x: scroll;
+            overflow-y: auto; /* FIX: Allow vertical scrolling */
+        }
+        .timeline {
+            position: relative;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .ruler {
+            position: sticky;
+            top: 0;
+            height: 25px;
+            background-color: #111827;
+            z-index: 10;
+        }
+        .tick {
+            position: absolute;
+            height: 100%;
+            width: 1px;
+            background-color: #4b5563;
+        }
+        .tick-label {
+            position: absolute;
+            top: 5px;
+            left: 2px;
+            font-size: 10px;
+            color: #9ca3af;
+        }
+        /* FIX: Style for timeline markers */
+        .timeline-marker {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background-color: #facc15; /* A gold/yellow color */
+            z-index: 15;
+            pointer-events: none;
+        }
+        .action-marker, .path-marker {
+            position: absolute;
+            height: 20px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            padding-left: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-sizing: border-box;
+        }
+        .action-marker {
+            cursor: move;
+        }
+        .action-marker.selected, .path-marker.selected {
+            border: 2px solid #60a5fa; /* Blue border for selected items */
+        }
+        .resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 8px;
+            height: 100%;
+            cursor: ew-resize;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .playhead {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background-color: #f87171;
+            z-index: 20;
+            pointer-events: none;
+        }
+        #waveform-container {
+            position: relative;
+            height: 120px; /* Increased height for spectrogram */
+            border-bottom: 1px solid #374151;
+        }
+        #waveform {
+            width: 100%;
+            height: 80px;
+        }
+        #spectrogram {
+            width: 100%;
+            height: 40px;
+        }
+        #actions-track {
+            position: relative;
+            flex-grow: 1;
+            min-height: 150px; /* Ensure it has a minimum height */
+        }
+
+        /* Modal Styles */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 40;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #2d3748;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .form-input, .form-select, .form-checkbox {
+            background-color: #4a5568;
+            border: 1px solid #718096;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            width: 100%;
+        }
+        .form-checkbox {
+            width: auto;
+            margin-right: 0.5rem;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-weight: 500;
+            color: #a0aec0;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        .form-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .selection-btn {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.375rem;
+            text-align: left;
+            font-weight: 500;
+            transition: background-color: 0.2s;
+        }
+        .array-item {
+            border: 1px solid #4a5568;
+            padding: 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        /* Tab Styles */
+        .tab-button {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: #9ca3af;
+        }
+        .tab-button.active {
+            color: #ffffff;
+            border-bottom-color: #4f46e5;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: flex; /* Changed to flex to allow inner content to grow */
+        }
+        /* Stage Editor Styles */
+        .stage-item {
+            background-color: #374151;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .stage-item:hover {
+            border-color: #4f46e5;
+        }
+        .stage-item.selected {
+            border-color: #60a5fa;
+            background-color: #4a5568;
+        }
+        /* Camera/Particle Path Editor Styles */
+        .path-item, .point-item {
+            background-color: #374151;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .point-item {
+            background-color: #2d3748;
+            margin-top: 0.5rem;
+            padding-left: 1.5rem;
+        }
+        .path-item.selected, .point-item.selected {
+            border-color: #f87171;
+            background-color: #4a5568;
+        }
+        .autocomplete-container {
+            position: relative;
+        }
+        .autocomplete-suggestions {
+            position: absolute;
+            border: 1px solid #4a5568;
+            background-color: #2d3748;
+            width: 100%;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .autocomplete-suggestion {
+            padding: 0.5rem;
+            cursor: pointer;
+        }
+        .autocomplete-suggestion:hover {
+            background-color: #4a5568;
+        }
+        .color-input-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .viewport-btn {
+            background-color: rgba(45, 55, 72, 0.8);
+            border: 1px solid #4a5568;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .viewport-btn:hover {
+            background-color: #4a5568;
+        }
+        .viewport-btn.active {
+            background-color: #4f46e5;
+        }
+        /* Library Styles */
+        .library-item {
+            background-color: #374151;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            cursor: grab;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .library-item:active {
+            cursor: grabbing;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white">
+
+<div class="flex flex-col h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 p-2 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold ml-4">Fireworks Show Editor</h1>
+        <div class="flex items-center space-x-4">
+            <div>
+                <label for="snap-control" class="text-sm mr-2">Snap:</label>
+                <select id="snap-control" class="form-select w-24 py-1 text-sm">
+                    <option value="0">None</option>
+                    <option value="0.25">0.25</option>
+                    <option value="0.5">0.5</option>
+                    <option value="1">1</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button id="add-stage-point-btn"
+                        class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
+                    Add Stage Point
+                </button>
+                <button id="add-action-at-cursor-btn"
+                        class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
+                    Add At Cursor
+                </button>
+                <button id="add-action-btn"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
+                    Add Action
+                </button>
+                <input type="file" id="json-input" accept=".json" class="hidden">
+                <button id="load-json-btn"
+                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
+                    Load JSON
+                </button>
+                <input type="file" id="audio-input" accept="audio/*" class="hidden">
+                <button id="load-audio-btn"
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
+                    Load Audio
+                </button>
+                <button id="export-json-btn"
+                        class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
+                    Export JSON
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex flex-grow overflow-hidden">
+        <!-- 3D Viewport -->
+        <div id="viewport-container" class="w-2/3 bg-gray-900 relative">
+            <canvas id="viewport"></canvas>
+            <div id="coords-display"
+                 class="absolute bottom-2 left-2 bg-black bg-opacity-50 p-2 rounded text-sm font-mono">
+                X: 0.00, Y: 0.00, Z: 0.00
+            </div>
+            <div id="viewport-controls" class="absolute top-2 left-2 flex flex-col space-y-2">
+                <button id="move-mode-btn" class="viewport-btn active">Move</button>
+                <button id="rotate-mode-btn" class="viewport-btn">Rotate</button>
+                <button id="camera-view-btn" class="viewport-btn">Camera View</button>
+                <div id="arch-controls" class="hidden flex-col space-y-2">
+                    <button id="arch-start-btn" class="viewport-btn">Edit Start</button>
+                    <button id="arch-end-btn" class="viewport-btn">Edit End</button>
+                    <button id="arch-height-btn" class="viewport-btn">Edit Height</button>
+                </div>
+                <div id="area-controls" class="hidden flex-col space-y-2">
+                    <button id="area-pos1-btn" class="viewport-btn">Edit Pos1</button>
+                    <button id="area-pos2-btn" class="viewport-btn">Edit Pos2</button>
+                </div>
+                <label id="edit-end-state-label"
+                       class="hidden items-center p-2 rounded-md bg-black bg-opacity-50 text-sm">
+                    <input type="checkbox" id="edit-end-state-checkbox"
+                           class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mr-2">
+                    Edit End State
+                </label>
+            </div>
+        </div>
+
+        <!-- Side Panel -->
+        <div class="w-1/3 bg-gray-800 p-4 flex flex-col overflow-y-auto">
+            <!-- Tabs -->
+            <div class="border-b border-gray-700">
+                <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+                    <button class="tab-button active" data-tab="stage">Stage</button>
+                    <button class="tab-button" data-tab="camera">Camera</button>
+                    <button class="tab-button" data-tab="paths">Paths</button>
+                    <button class="tab-button" data-tab="library">Library</button>
+                    <button class="tab-button" data-tab="modifiers">Modifiers</button>
+                    <button class="tab-button" data-tab="json">JSON</button>
+                </nav>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="pt-4 flex-grow flex flex-col">
+                <div id="tab-stage" class="tab-content active flex-grow flex-col">
+                    <h2 class="text-xl font-semibold mb-2">Stage Center</h2>
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <div>
+                            <label for="stage-center-x" class="text-sm text-gray-400">Center X</label>
+                            <input type="number" step="0.1" id="stage-center-x" class="form-input p-1" value="0">
+                        </div>
+                        <div>
+                            <label for="stage-center-y" class="text-sm text-gray-400">Center Y</label>
+                            <input type="number" step="0.1" id="stage-center-y" class="form-input p-1" value="0">
+                        </div>
+                        <div>
+                            <label for="stage-center-z" class="text-sm text-gray-400">Center Z</label>
+                            <input type="number" step="0.1" id="stage-center-z" class="form-input p-1" value="0">
+                        </div>
+                    </div>
+                    <h2 class="text-xl font-semibold mt-2 mb-2">Stage Editor</h2>
+                    <div id="stage-editor-container" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-md"></div>
+                </div>
+
+                <div id="tab-camera" class="tab-content flex-grow flex-col">
+                    <h2 class="text-xl font-semibold mb-2">Camera Path</h2>
+                    <button id="add-camera-point-btn"
+                            class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300 mb-4">
+                        Add Camera Point at Current Position
+                    </button>
+                    <div id="camera-path-editor-container"
+                         class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-md"></div>
+                </div>
+
+                <div id="tab-paths" class="tab-content flex-grow flex-col">
+                    <h2 class="text-xl font-semibold mb-2">Particle Paths</h2>
+                    <button id="add-particle-path-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300 mb-4">
+                        Add New Particle Path
+                    </button>
+                    <div id="particle-path-editor-container" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-md"></div>
+                </div>
+
+                <div id="tab-library" class="tab-content flex-grow flex-col">
+                    <h2 class="text-xl font-semibold mb-2">Effect Library</h2>
+                    <button id="save-effect-btn"
+                            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300 mb-4">
+                        Save Selected Effect
+                    </button>
+                    <div id="effect-library-list" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-md"></div>
+                </div>
+
+                <div id="tab-modifiers" class="tab-content">
+                    <h2 class="text-xl font-semibold my-2">Mirror Modifier</h2>
+                    <div class="bg-gray-700 p-3 rounded-lg">
+                        <div class="flex items-center mb-3">
+                            <input type="checkbox" id="mirror-enabled"
+                                   class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <label for="mirror-enabled" class="ml-2 block text-sm text-gray-200">Enable Mirror</label>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 mb-2">
+                            <div>
+                                <label for="mirror-x" class="text-sm text-gray-400">Mirror X</label>
+                                <input type="number" step="0.1" id="mirror-x" class="form-input p-1" value="0">
+                            </div>
+                            <div>
+                                <label for="mirror-y" class="text-sm text-gray-400">Mirror Y</label>
+                                <input type="number" step="0.1" id="mirror-y" class="form-input p-1" value="0">
+                            </div>
+                            <div>
+                                <label for="mirror-z" class="text-sm text-gray-400">Mirror Z</label>
+                                <input type="number" step="0.1" id="mirror-z" class="form-input p-1" value="0">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="mirror-axis" class="text-sm text-gray-400">Mirror Axis</label>
+                            <select id="mirror-axis" class="form-select w-full py-1 text-sm">
+                                <option value="x">X-Axis</option>
+                                <option value="y">Y-Axis</option>
+                                <option value="z">Z-Axis</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tab-json" class="tab-content flex-grow flex-col">
+                    <h2 class="text-xl font-semibold mb-2">JSON Data</h2>
+                    <textarea id="json-editor"
+                              class="w-full flex-grow bg-gray-900 text-green-300 font-mono text-sm p-2 rounded-md border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="bg-gray-800 border-t-2 border-gray-700 flex flex-col">
+        <div class="flex items-center p-2 bg-gray-900">
+            <div id="media-controls" class="flex space-x-2">
+                <button id="play-btn" class="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                         viewBox="0 0 16 16">
+                        <path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                    </svg>
+                </button>
+                <button id="pause-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                         viewBox="0 0 16 16">
+                        <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
+                    </svg>
+                </button>
+                <button id="stop-btn" class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor"
+                         viewBox="0 0 16 16">
+                        <path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="flex items-center space-x-2 ml-4">
+                <label for="tick-input" class="text-sm">Tick:</label>
+                <input type="number" id="tick-input" class="bg-gray-700 text-white w-24 p-1 rounded-md text-center">
+                <button id="zoom-out-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold w-8 h-8 rounded-md">
+                    -
+                </button>
+                <button id="zoom-in-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold w-8 h-8 rounded-md">
+                    +
+                </button>
+            </div>
+        </div>
+        <div id="timeline-container" class="timeline-container h-64">
+            <div class="timeline">
+                <div class="ruler"></div>
+                <div id="waveform-container">
+                    <div id="waveform"></div>
+                    <div id="spectrogram"></div>
+                </div>
+                <div id="actions-track"></div>
+                <div class="playhead"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generic Modal -->
+<div id="modal" class="modal-backdrop hidden">
+    <div id="modal-content" class="modal-content">
+        <!-- Content will be injected here -->
+    </div>
+</div>
+
+
+<script>
+    // --- Global Variables ---
+    let scene, camera, renderer, controls, transformControls, font;
+    let showData = {
+        timelineMarkers: []
+    };
+    const stageObjects = new THREE.Group();
+    const effectObjects = new THREE.Group();
+    const locationMarkers = new THREE.Group();
+    const selectionVisuals = new THREE.Group(); // Group for selected action visuals
+    const cameraPathVisuals = new THREE.Group();
+    const particlePathVisuals = new THREE.Group();
+    let playheadCameraHelper;
+
+    const transformProxy = new THREE.Object3D();
+    const transformProxyEnd = new THREE.Object3D();
+    const transformProxyArchStart = new THREE.Object3D();
+    const transformProxyArchEnd = new THREE.Object3D();
+    const transformProxyArchHeight = new THREE.Object3D();
+    const transformProxyAreaPos1 = new THREE.Object3D();
+    const transformProxyAreaPos2 = new THREE.Object3D();
+    const transformProxyCamera = new THREE.Object3D();
+    const transformProxyParticlePath = new THREE.Object3D();
+    let wavesurfer;
+    let maxTicks = 2000;
+    let TICK_WIDTH = 4;
+    let editingAction = { tick: null, index: null, type: null };
+    let timelineDrag = { active: false, type: null, target: null, initialX: 0, initialTick: 0, initialWidth: 0 };
+    let activeLasers = {};
+    const gridHelper = new THREE.GridHelper(500, 500, 0x4a5568, 0x374151);
+    let selectedActionUUIDs = new Set();
+    let selectedStageObjectUUID = null;
+    let selectedCameraPointIndex = -1;
+    let selectedParticlePath = { pathIndex: -1, pointIndex: -1 };
+    let inactiveMarkerGeo, activeMarkerGeo, mirrorPlane;
+    let historyStack = [];
+    let historyIndex = -1;
+    let raycaster, mouse, lastMouseCoords;
+    let editingTarget = 'start';
+    let archEditMode = 'start';
+    let areaEditMode = 'pos1';
+    let effectLibrary = [];
+    let isCameraViewActive = false;
+
+    // --- Data Templates ---
+    const ACTION_TEMPLATES = {
+        guardian_laser: { name: null, group: "Main Stage", endPos: {x:0,y:0,z:0}, duration: 40, distance: 128, state: "on" },
+        crystal_laser: { name: null, group: "Main Stage", endPos: {x:0,y:0,z:0}, duration: 40, distance: 128, state: "on" },
+        firework: {
+            location: {x:0,y:0,z:0},
+            nbt: {
+                Fireworks: {
+                    Explosions: [
+                        { Colors: [11743532], FadeColors: [], Type: "BURST", flicker: 1, trail: 0 }
+                    ]
+                }
+            },
+            forces: {x:0, y:1, z:0, i:1},
+            duration: 20
+        },
+        particle_text: {
+            text: "Hello",
+            particleType: "flame",
+            size: 1,
+            duration: 100,
+            location: {x:0,y:0,z:0},
+            rotation: {yaw:0,pitch:0,roll:0},
+            endLocation: {x:0,y:0,z:0},
+            endRotation: {yaw:0,pitch:0,roll:0},
+            delay: 0,
+            moveTime: 0
+        },
+        display_text: {
+            text: "Display Text",
+            size: 1.0,
+            duration: 20,
+            location: {x:0,y:0,z:0},
+            rotation: {yaw:0,pitch:0,roll:0},
+            color: "#FFFFFF",
+            billboard: "FIXED",
+            alignment: "CENTER",
+            backgroundColor: "#00000000",
+            textOpacity: -1,
+            shadowed: false,
+            seeThrough: false,
+            defaultBackground: true,
+            lineWidth: 200,
+            endLocation: {x:0,y:0,z:0},
+            endRotation: {yaw:0,pitch:0,roll:0},
+            delay: 0,
+            moveTime: 0
+        },
+        particle_shape: {
+            particleType: "flame",
+            duration: 40,
+            density: 4,
+            shape: { type: "line", start: {x:-10,y:0,z:0}, end: {x:10,y:0,z:0}}
+        },
+        particle_effect: {
+            effect: { type: "bust", particleType: "flame", location: {x:0,y:0,z:0}, amount: 50, radius: 1 }
+        },
+        light: { location: {x:0, y:0, z:0}, lit: true, duration: 1 },
+        music: { sound: "music.id", duration: 1, location: {x:0, y:0, z:0} },
+        command: { command: "/say Hello", duration: 1, location: {x:0, y:0, z:0} }
+    };
+
+    const SHAPE_TEMPLATES = {
+        line: { type: "line", start: {x:-10,y:0,z:0}, end: {x:10,y:0,z:0}, width: 0.1, delay: 0, moveTime: null },
+        arch: { type: "arch", start: {x:-10,y:0,z:0}, end: {x:10,y:0,z:0}, height: 10, delay: 0, moveTime: null },
+        circle: { type: "circle", centre: {x:0,y:0,z:0}, radius: 5, rotation: {yaw:0,pitch:0,roll:0}, endRadius: null, endRotation: null, delay: 0, moveTime: null, drawTime: null, keepTrail: true },
+        sphere: { type: "sphere", centre: {x:0,y:0,z:0}, radius: 5, delay: 0, endRadius: null, moveTime: null },
+        hemisphere: { type: "hemisphere", centre: {x:0,y:0,z:0}, radius: 5, rotation: {yaw:0,pitch:0,roll:0}, delay: 0, endRadius: null, moveTime: null },
+        cube: { type: "cube", centre: {x:0,y:0,z:0}, scale: {x:5,y:5,z:5}, rotation: {yaw:0,pitch:0,roll:0}, delay: 0, endScale: null, moveTime: null }
+    };
+
+    const PARTICLE_EFFECT_TEMPLATES = {
+        bust: { type: "bust", particleType: "flame", location: {x:0,y:0,z:0}, amount: 50, radius: 1, scale: {x:1,y:1,z:1} },
+        laser: { type: "laser", particleType: "flame", start: {x:-10,y:0,z:0}, end: {x:10,y:0,z:0}, duration: 40, startWidth: 0.1, endWidth: 1, density: 2 },
+        area: { type: "area", particleType: "flame", pos1: {x:-10,y:0,z:-10}, pos2: {x:10,y:10,z:10}, density: 5 }
+    };
+
+    const STAGE_POINT_TEMPLATES = {
+        laser: { name: "New Laser", location: { x: 0, y: 0, z: 0 }, groups: ["Main Stage"] },
+        light: { name: "New Light", location: { x: 0, y: 0, z: 0 }, groups: ["Main Stage"] },
+        effectPoint: { name: "New Effect Point", location: { x: 0, y: 0, z: 0 }, groups: ["Main Stage"] }
+    };
+
+    const PARTICLE_LIST = ["angry_villager", "ash", "block", "block_marker", "bubble", "bubble_column_up", "bubble_pop", "campfire_cosy_smoke", "campfire_signal_smoke", "cherry_leaves", "cloud", "composter", "crit", "crimson_spore", "current_down", "damage_indicator", "dolphin", "dragon_breath", "dripping_dripstone_lava", "dripping_dripstone_water", "dripping_honey", "dripping_lava", "dripping_obsidian_tear", "dripping_water", "dust", "dust_color_transition", "dust_pillar", "dust_plume", "egg_crack", "elder_guardian", "electric_spark", "enchant", "enchanted_hit", "end_rod", "entity_effect", "effect", "explosion", "explosion_emitter", "falling_dripstone_lava", "falling_dripstone_water", "falling_dust", "falling_honey", "falling_lava", "falling_nectar", "falling_obsidian_tear", "falling_spore_blossom", "falling_water", "firefly", "firework", "fishing", "flame", "flash", "glow", "glow_squid_ink", "gust", "gust_emitter_large", "gust_emitter_small", "happy_villager", "heart", "infested", "instant_effect", "item", "item_cobweb", "item_slime", "item_snowball", "landing_honey", "landing_lava", "lava", "mycelium", "nautilus", "note", "ominous_spawning", "pale_oak_leaves", "poof", "portal", "raid_omen", "rain", "reverse_portal", "scrape", "sculk_charge", "sculk_charge_pop", "sculk_soul", "shriek", "small_flame", "small_gust", "smoke", "sneeze", "snowflake", "sonic_boom", "soul", "soul_fire_flame", "spit", "splash", "spore_blossom_air", "squid_ink", "sweep_attack", "tinted_leaves", "totem_of_undying", "trail", "trial_omen", "trial_spawner_detection", "trial_spawner_detection_ominous", "underwater", "vault_connection", "vibration", "warped_spore", "wax_off", "wax_on", "white_ash", "white_smoke", "witch"].sort();
+
+
+    // --- Initialization ---
+    function init() {
+        const viewportContainer = document.getElementById('viewport-container');
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111827);
+        camera = new THREE.PerspectiveCamera(75, viewportContainer.clientWidth / viewportContainer.clientHeight, 0.1, 2000);
+        camera.position.set(0, 10, 50);
+        renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('viewport'), antialias: true });
+        renderer.setSize(viewportContainer.clientWidth, viewportContainer.clientHeight);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        transformControls = new THREE.TransformControls(camera, renderer.domElement);
+        scene.add(transformControls);
+        scene.add(transformProxy);
+        scene.add(transformProxyEnd);
+        scene.add(transformProxyArchStart);
+        scene.add(transformProxyArchEnd);
+        scene.add(transformProxyArchHeight);
+        scene.add(transformProxyAreaPos1);
+        scene.add(transformProxyAreaPos2);
+        scene.add(transformProxyCamera);
+        scene.add(transformProxyParticlePath);
+        scene.add(selectionVisuals);
+        scene.add(cameraPathVisuals);
+        scene.add(particlePathVisuals);
+
+        const ambientLight = new THREE.AmbientLight(0xcccccc, 1);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(50, 80, 50);
+        scene.add(directionalLight);
+
+        scene.add(gridHelper);
+
+        scene.add(stageObjects);
+        scene.add(effectObjects);
+        scene.add(locationMarkers);
+
+        const cameraIconGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const cameraIconMat = new THREE.MeshBasicMaterial({ color: 0xf87171 });
+        playheadCameraHelper = new THREE.Mesh(cameraIconGeo, cameraIconMat);
+        playheadCameraHelper.visible = false;
+        scene.add(playheadCameraHelper);
+
+
+        inactiveMarkerGeo = new THREE.SphereGeometry(0.5, 16, 8);
+        activeMarkerGeo = new THREE.OctahedronGeometry(0.5, 0);
+
+        const mirrorGeo = new THREE.PlaneGeometry(100, 100);
+        const mirrorMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide, transparent: true, opacity: 0.2 });
+        mirrorPlane = new THREE.Mesh(mirrorGeo, mirrorMat);
+        mirrorPlane.visible = false;
+        scene.add(mirrorPlane);
+
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+        lastMouseCoords = new THREE.Vector3();
+        updateStageCenter();
+
+
+        wavesurfer = WaveSurfer.create({
+            container: '#waveform',
+            waveColor: '#6b7280',
+            progressColor: '#a5b4fc',
+            cursorWidth: 0,
+            barWidth: 2,
+            barRadius: 3,
+            responsive: false,
+            height: 80
+        });
+
+        wavesurfer.registerPlugin(WaveSurfer.Spectrogram.create({
+            container: '#spectrogram',
+            labels: false,
+            height: 40,
+            colorMap: generateColorMap()
+        }));
+
+        const fontLoader = new THREE.FontLoader();
+        fontLoader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', loadedFont => {
+            font = loadedFont;
+        });
+
+        setupEventListeners();
+        loadEffectLibrary();
+        animate();
+        drawTimeline();
+        drawTimelineMarkers();
+        recordHistory();
+    }
+
+    function setupEventListeners() {
+        document.getElementById('load-json-btn').addEventListener('click', () => document.getElementById('json-input').click());
+        document.getElementById('json-input').addEventListener('change', handleJsonUpload);
+        document.getElementById('load-audio-btn').addEventListener('click', () => document.getElementById('audio-input').click());
+        document.getElementById('audio-input').addEventListener('change', handleAudioUpload);
+        document.getElementById('export-json-btn').addEventListener('click', exportJson);
+        document.getElementById('json-editor').addEventListener('input', syncJsonToData);
+
+        document.getElementById('play-btn').addEventListener('click', () => wavesurfer.playPause());
+        document.getElementById('pause-btn').addEventListener('click', () => wavesurfer.pause());
+        document.getElementById('stop-btn').addEventListener('click', () => {
+            wavesurfer.stop();
+            updatePlayhead(0, true);
+        });
+
+        document.getElementById('add-action-btn').addEventListener('click', () => showAddActionDialog());
+        document.getElementById('add-stage-point-btn').addEventListener('click', showAddStagePointDialog);
+        document.getElementById('add-action-at-cursor-btn').addEventListener('click', addActionAtCursor);
+        document.getElementById('add-camera-point-btn').addEventListener('click', addCameraPoint);
+        document.getElementById('add-particle-path-btn').addEventListener('click', addParticlePath);
+
+
+        ['stage-center-x', 'stage-center-y', 'stage-center-z'].forEach(id => {
+            document.getElementById(id).addEventListener('change', updateStageCenter);
+        });
+
+        document.getElementById('zoom-in-btn').addEventListener('click', () => zoomTimeline(1.25));
+        document.getElementById('zoom-out-btn').addEventListener('click', () => zoomTimeline(0.8));
+        document.getElementById('timeline-container').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            zoomTimeline(e.deltaY < 0 ? 1.1 : 0.9);
+        });
+        document.getElementById('tick-input').addEventListener('change', (e) => {
+            const tick = parseInt(e.target.value);
+            if (!isNaN(tick)) {
+                wavesurfer.seekTo(tick / maxTicks);
+            }
+        });
+
+        document.getElementById('actions-track').addEventListener('click', e => {
+            if (e.target === e.currentTarget) {
+                deselectAll();
+                updateUIFromData();
+            }
+        });
+
+        const viewport = document.getElementById('viewport');
+        viewport.addEventListener('click', e => {
+             if (e.target.tagName === 'CANVAS') {
+                deselectAll();
+                updateUIFromData();
+            }
+        });
+        viewport.addEventListener('dragover', e => e.preventDefault());
+        viewport.addEventListener('drop', handleViewportDrop);
+
+
+        document.getElementById('snap-control').addEventListener('change', (e) => {
+            const snapValue = parseFloat(e.target.value);
+            transformControls.setTranslationSnap(snapValue > 0 ? snapValue : null);
+            transformControls.setRotationSnap(snapValue > 0 ? THREE.MathUtils.degToRad(snapValue * 15) : null);
+        });
+
+        ['mirror-enabled', 'mirror-x', 'mirror-y', 'mirror-z', 'mirror-axis'].forEach(id => {
+            document.getElementById(id).addEventListener('change', updateMirrorPlane);
+        });
+
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.dataset.tab;
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                    content.style.display = 'none';
+                });
+                button.classList.add('active');
+                const activeTab = document.getElementById(`tab-${tabId}`);
+                activeTab.classList.add('active');
+                activeTab.style.display = 'flex';
+            });
+        });
+
+        document.getElementById('move-mode-btn').addEventListener('click', () => setTransformMode('translate'));
+        document.getElementById('rotate-mode-btn').addEventListener('click', () => setTransformMode('rotate'));
+        document.getElementById('camera-view-btn').addEventListener('click', () => {
+            isCameraViewActive = !isCameraViewActive;
+            document.getElementById('camera-view-btn').classList.toggle('active', isCameraViewActive);
+            controls.enabled = !isCameraViewActive;
+            if (!isCameraViewActive) {
+                controls.update();
+            }
+        });
+        document.getElementById('edit-end-state-checkbox').addEventListener('change', (e) => {
+            editingTarget = e.target.checked ? 'end' : 'start';
+            updateTransformControls();
+        });
+        document.getElementById('arch-start-btn').addEventListener('click', () => setArchEditMode('start'));
+        document.getElementById('arch-end-btn').addEventListener('click', () => setArchEditMode('end'));
+        document.getElementById('arch-height-btn').addEventListener('click', () => setArchEditMode('height'));
+        document.getElementById('area-pos1-btn').addEventListener('click', () => setAreaEditMode('pos1'));
+        document.getElementById('area-pos2-btn').addEventListener('click', () => setAreaEditMode('pos2'));
+        document.getElementById('save-effect-btn').addEventListener('click', saveSelectedEffectToLibrary);
+
+
+        document.getElementById('viewport').addEventListener('mousemove', onViewportMouseMove);
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('keydown', handleKeyDown);
+        wavesurfer.on('seek', p => updatePlayhead(Math.floor(p * maxTicks), wavesurfer.isPlaying()));
+        wavesurfer.on('ready', () => {
+            maxTicks = Math.ceil(wavesurfer.getDuration() * 20);
+            drawTimeline();
+            drawActionsOnTimeline();
+            wavesurfer.play();
+        });
+
+        document.addEventListener('mousemove', handleTimelineMouseMove);
+        document.addEventListener('mouseup', handleTimelineMouseUp);
+
+        transformControls.addEventListener('dragging-changed', e => {
+            controls.enabled = !e.value;
+        });
+        transformControls.addEventListener('mouseUp', () => {
+            if (transformControls.object) {
+                recordHistory();
+            }
+        });
+        transformControls.addEventListener('objectChange', handleTransformChange);
+    }
+
+    // --- Data & UI Sync ---
+    function handleJsonUpload(e) {
+        const wasPlaying = wavesurfer.isPlaying();
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                showData = JSON.parse(e.target.result);
+                if (!showData.timelineMarkers) showData.timelineMarkers = [];
+                if (!showData.cameraMovements) showData.cameraMovements = [];
+                if (!showData.particlePaths) showData.particlePaths = [];
+
+                if (showData.stage?.location) {
+                    document.getElementById('stage-center-x').value = showData.stage.location.x;
+                    document.getElementById('stage-center-y').value = showData.stage.location.y;
+                    document.getElementById('stage-center-z').value = showData.stage.location.z;
+                }
+                updateStageCenter();
+                commitChange();
+                if (wasPlaying) wavesurfer.play();
+            } catch (error) { alert("Invalid JSON file."); }
+        };
+        reader.readAsText(file);
+    }
+
+    function handleAudioUpload(e) {
+        const file = e.target.files[0];
+        if (file) {
+            wavesurfer.load(URL.createObjectURL(file));
+        }
+    }
+
+    function syncJsonToData(e) {
+        try {
+            const cursorPos = e.target.selectionStart;
+            showData = JSON.parse(e.target.value);
+            updateUIFromData(false);
+            e.target.selectionStart = e.target.selectionEnd = cursorPos;
+        } catch (error) { /* Ignore */ }
+    }
+
+    function commitChange() {
+        recordHistory();
+        updateUIFromData();
+        drawTimelineMarkers();
+    }
+
+    function updateUIFromData(updateJsonEditor = true) {
+        if (updateJsonEditor) {
+            document.getElementById('json-editor').value = JSON.stringify(showData, null, 2);
+        }
+        parseShowData();
+        updateStageEditor();
+        drawCameraPathEditor();
+        drawParticlePathEditor();
+        drawCameraPath();
+        drawParticlePaths();
+        updateTransformControls();
+        updateSelectionVisuals();
+    }
+
+    function exportJson() {
+        if (!showData.stage) showData.stage = {};
+        showData.stage.location = {
+            x: parseFloat(document.getElementById('stage-center-x').value),
+            y: parseFloat(document.getElementById('stage-center-y').value),
+            z: parseFloat(document.getElementById('stage-center-z').value)
+        };
+        const dataStr = JSON.stringify(showData, null, 4);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        const exportFileDefaultName = `${showData.showName || 'firework_show'}.json`;
+        let linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    }
+
+    function deselectAll() {
+        selectedActionUUIDs.clear();
+        selectedStageObjectUUID = null;
+        selectedCameraPointIndex = -1;
+        selectedParticlePath = { pathIndex: -1, pointIndex: -1 };
+    }
+
+    // --- Data Parsing & 3D Visualization ---
+    function updateStageCenter() {
+        const x = parseFloat(document.getElementById('stage-center-x').value);
+        const y = parseFloat(document.getElementById('stage-center-y').value);
+        const z = parseFloat(document.getElementById('stage-center-z').value);
+        if ([x,y,z].some(isNaN)) return;
+        controls.target.set(x, y, z);
+        gridHelper.position.set(x, y, z);
+    }
+
+    function parseShowData() {
+        stageObjects.clear();
+        locationMarkers.clear();
+
+        if (!showData.stage) showData.stage = {};
+        const stagePointTypes = ['lasers', 'lights', 'effectPoints'];
+        stagePointTypes.forEach(type => {
+            if (showData.stage[type]) {
+                showData.stage[type].forEach(item => {
+                    if (!item.id) item.id = crypto.randomUUID();
+                    createStageObject(item, type);
+                });
+            }
+        });
+
+        if (showData.frames) {
+            Object.entries(showData.frames).forEach(([tick, frame]) => {
+                frame.actions.forEach(action => {
+                    if (!action.id) action.id = crypto.randomUUID();
+                    if (action.data.location || action.data.shape?.centre || action.data.shape?.start || action.data.effect?.location) {
+                        locationMarkers.add(createLocationMarker(action, tick));
+                    }
+                });
+            });
+        }
+        drawActionsOnTimeline();
+    }
+
+    function createStageObject(item, type) {
+        const colors = { lasers: 0x00ffff, lights: 0xffff00, effectPoints: 0xff00ff };
+        const color = colors[type] || 0xffffff;
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.5 });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(item.location.x, item.location.y, item.location.z);
+        cube.userData = { id: item.id, type: type, ...item };
+        stageObjects.add(cube);
+    }
+
+    function createLocationMarker(action, tick) {
+        const material = new THREE.MeshBasicMaterial({ color: getActionColor(action.type), transparent: true, opacity: 0.2 });
+        const marker = new THREE.Mesh(inactiveMarkerGeo, material);
+        const loc = action.data.location || action.data.shape?.centre || action.data.shape?.start || action.data.effect?.location;
+        if (loc) {
+            marker.position.set(loc.x, loc.y, loc.z);
+        }
+        marker.userData = { action, startTick: parseInt(tick), duration: action.data.duration || 0 };
+        return marker;
+    }
+
+    // --- Timeline ---
+    function zoomTimeline(factor) {
+        const timelineContainer = document.getElementById('timeline-container');
+        const scrollRatio = timelineContainer.scrollLeft / timelineContainer.scrollWidth;
+        TICK_WIDTH = Math.max(0.1, Math.min(20, TICK_WIDTH * factor));
+        drawTimeline();
+        drawActionsOnTimeline();
+        drawTimelineMarkers();
+        timelineContainer.scrollLeft = scrollRatio * timelineContainer.scrollWidth;
+    }
+
+    function drawTimeline() {
+        const ruler = document.querySelector('.ruler');
+        const timeline = document.querySelector('.timeline');
+        ruler.innerHTML = '';
+        timeline.style.width = `${maxTicks * TICK_WIDTH}px`;
+        if (wavesurfer.isReady) wavesurfer.drawBuffer();
+        let step = 20;
+        if (TICK_WIDTH < 0.2) step = 200;
+        else if (TICK_WIDTH < 0.5) step = 100;
+        else if (TICK_WIDTH < 1) step = 50;
+        else if (TICK_WIDTH > 5) step = 10;
+        else if (TICK_WIDTH > 10) step = 5;
+        for (let i = 0; i <= maxTicks; i++) {
+            if (i % step === 0) {
+                const tickElement = document.createElement('div');
+                tickElement.className = 'tick';
+                tickElement.style.left = `${i * TICK_WIDTH}px`;
+                ruler.appendChild(tickElement);
+                const labelElement = document.createElement('div');
+                labelElement.className = 'tick-label';
+                labelElement.textContent = i;
+                tickElement.appendChild(labelElement);
+            }
+        }
+    }
+
+    function drawTimelineMarkers() {
+        const ruler = document.querySelector('.ruler');
+        ruler.querySelectorAll('.timeline-marker').forEach(m => m.remove());
+        if (!showData.timelineMarkers) return;
+        showData.timelineMarkers.forEach(tick => {
+            const markerEl = document.createElement('div');
+            markerEl.className = 'timeline-marker';
+            markerEl.style.left = `${tick * TICK_WIDTH}px`;
+            markerEl.title = `Marker @ ${tick}`;
+            ruler.appendChild(markerEl);
+        });
+    }
+
+    function drawActionsOnTimeline() {
+        const actionsTrack = document.getElementById('actions-track');
+        actionsTrack.innerHTML = '';
+        if (!showData.frames && !showData.particlePaths) return;
+
+        const actionPlacements = [];
+        const allActions = [];
+
+        if (showData.frames) {
+            Object.entries(showData.frames).forEach(([tick, frame]) => {
+                frame.actions.forEach((action) => {
+                    allActions.push({ item: action, tick: parseInt(tick), type: 'action' });
+                });
+            });
+        }
+
+        if (showData.particlePaths) {
+            showData.particlePaths.forEach((path, pathIndex) => {
+                path.points.forEach((point, pointIndex) => {
+                    allActions.push({ item: point, path: path, pathIndex, pointIndex, tick: point.tick, type: 'path' });
+                });
+            });
+        }
+
+
+        allActions.sort((a, b) => a.tick - b.tick);
+
+        let maxRow = 0;
+        allActions.forEach(item => {
+            let endTick;
+            if (item.type === 'action') {
+                const action = item.item;
+                const isFixedDuration = ['firework', 'light', 'music', 'command'].includes(action.type);
+                if (action.type === 'firework') action.data.duration = 20;
+                if (isFixedDuration) action.data.duration = 1;
+                endTick = item.tick + (action.data.duration || 20);
+            } else { // path point
+                endTick = item.tick + 1;
+            }
+
+            let row = 0;
+            while (true) {
+                if (!actionPlacements[row] || actionPlacements[row] <= item.tick) {
+                    actionPlacements[row] = endTick;
+                    break;
+                }
+                row++;
+            }
+            if (row > maxRow) maxRow = row;
+
+            if (item.type === 'action') {
+                const action = item.item;
+                const marker = document.createElement('div');
+                marker.className = 'action-marker';
+                if (selectedActionUUIDs.has(action.id)) marker.classList.add('selected');
+                const duration = action.data.duration || 20;
+                let displayWidth = duration * TICK_WIDTH;
+                if (['light', 'music', 'command'].includes(action.type)) displayWidth = Math.max(displayWidth, TICK_WIDTH * 2);
+
+                marker.style.left = `${item.tick * TICK_WIDTH}px`;
+                marker.style.width = `${displayWidth}px`;
+                marker.style.top = `${10 + row * 25}px`;
+                marker.style.backgroundColor = getActionColor(action.type);
+                marker.title = `${action.type} @ ${item.tick}`;
+                marker.textContent = `${action.type}`;
+                marker.dataset.actionId = action.id;
+
+                if (!['firework', 'light', 'music', 'command'].includes(action.type)) {
+                    const resizeHandle = document.createElement('div');
+                    resizeHandle.className = 'resize-handle';
+                    marker.appendChild(resizeHandle);
+                    resizeHandle.addEventListener('mousedown', e => handleTimelineMouseDown(e, 'resize', marker));
+                }
+
+                marker.addEventListener('mousedown', e => handleTimelineMouseDown(e, 'drag', marker));
+                marker.addEventListener('dblclick', () => {
+                    const { tick, index } = findActionByUUID(action.id);
+                    if (tick !== -1) openActionEditor(tick, index);
+                });
+                actionsTrack.appendChild(marker);
+            } else { // path point
+                const marker = document.createElement('div');
+                marker.className = 'path-marker';
+                 if (selectedParticlePath.pathIndex === item.pathIndex && selectedParticlePath.pointIndex === item.pointIndex) {
+                    marker.classList.add('selected');
+                }
+                marker.style.left = `${item.tick * TICK_WIDTH}px`;
+                marker.style.width = `${TICK_WIDTH * 4}px`;
+                marker.style.top = `${10 + row * 25}px`;
+                marker.style.backgroundColor = '#10b981'; // Teal color for paths
+                marker.title = `Path: ${item.path.name} @ ${item.tick}`;
+                marker.textContent = `P`;
+                marker.dataset.pathIndex = item.pathIndex;
+                marker.dataset.pointIndex = item.pointIndex;
+
+                marker.addEventListener('click', () => {
+                    deselectAll();
+                    selectedParticlePath.pathIndex = item.pathIndex;
+                    selectedParticlePath.pointIndex = item.pointIndex;
+                    updateUIFromData(false);
+                });
+                actionsTrack.appendChild(marker);
+            }
+        });
+
+        actionsTrack.style.height = `${(maxRow + 2) * 25}px`;
+    }
+
+    function handleTimelineMouseDown(event, type, target) {
+        event.stopPropagation();
+        timelineDrag = { active: true, type, target, initialX: event.clientX };
+        deselectAll();
+
+        if (type === 'drag') {
+            const actionId = target.dataset.actionId;
+            if (!selectedActionUUIDs.has(actionId)) {
+                if (!event.shiftKey) {
+                    selectedActionUUIDs.clear();
+                }
+                selectedActionUUIDs.add(actionId);
+            }
+            document.querySelectorAll('.action-marker.selected').forEach(marker => {
+                marker.dataset.initialLeft = parseFloat(marker.style.left);
+            });
+        } else if (type === 'resize') {
+             target.dataset.initialWidth = parseFloat(target.style.width);
+        }
+        updateUIFromData(false);
+    }
+
+    function handleTimelineMouseMove(event) {
+        if (!timelineDrag.active) return;
+        const { target, type, initialX } = timelineDrag;
+        const dx = event.clientX - initialX;
+
+        if (type === 'drag') {
+            document.querySelectorAll('.action-marker.selected').forEach(marker => {
+                const initialLeft = parseFloat(marker.dataset.initialLeft);
+                marker.style.left = `${Math.max(0, initialLeft + dx)}px`;
+            });
+        } else if (type === 'resize') {
+            const initialWidth = parseFloat(target.dataset.initialWidth);
+            target.style.width = `${Math.max(TICK_WIDTH, initialWidth + dx)}px`;
+        }
+    }
+
+    function handleTimelineMouseUp(event) {
+        if (!timelineDrag.active) return;
+
+        const { target, type, initialX } = timelineDrag;
+        const actionId = target.dataset.actionId;
+        const dx = event.clientX - initialX;
+        const dragThreshold = 5;
+
+        if (Math.abs(dx) < dragThreshold && type === 'drag') {
+             if (event.shiftKey) {
+                if (selectedActionUUIDs.has(actionId)) selectedActionUUIDs.delete(actionId);
+                else selectedActionUUIDs.add(actionId);
+            } else {
+                selectedActionUUIDs.clear();
+                selectedActionUUIDs.add(actionId);
+            }
+            timelineDrag.active = false;
+            updateUIFromData();
+            return;
+        }
+
+        if (type === 'resize') {
+            const {tick, index} = findActionByUUID(actionId);
+            if(tick !== -1) {
+                const newDuration = Math.round(parseFloat(target.style.width) / TICK_WIDTH);
+                showData.frames[tick].actions[index].data.duration = newDuration;
+            }
+        } else if (type === 'drag') {
+            const changes = [];
+            for (const id of selectedActionUUIDs) {
+                const { tick, action } = findActionByUUID(id);
+                const marker = document.querySelector(`.action-marker[data-action-id="${id}"]`);
+                if (action && marker) {
+                    const newTick = Math.round(parseFloat(marker.style.left) / TICK_WIDTH);
+                    changes.push({ action, oldTick: tick, newTick });
+                }
+            }
+
+            changes.forEach(({ action, oldTick }) => {
+                const oldIndex = showData.frames[oldTick].actions.findIndex(a => a.id === action.id);
+                if (oldIndex !== -1) showData.frames[oldTick].actions.splice(oldIndex, 1);
+            });
+
+            changes.forEach(({ action, newTick }) => {
+                if (!showData.frames[newTick]) showData.frames[newTick] = { actions: [] };
+                showData.frames[newTick].actions.push(action);
+            });
+             Object.keys(showData.frames).forEach(tick => {
+                if (showData.frames[tick].actions.length === 0) delete showData.frames[tick];
+            });
+        }
+
+        timelineDrag.active = false;
+        commitChange();
+    }
+
+
+    function getActionColor(type) {
+        const colors = {
+            'guardian_laser': '#34d399', 'crystal_laser': '#a78bfa',
+            'particle_text': '#fbbf24', 'display_text': '#60a5fa',
+            'particle_shape': '#f472b6', 'particle_effect': '#c084fc',
+            'firework': '#ef4444', 'light': '#fde047',
+            'music': '#fb923c', 'command': '#a8a29e', 'default': '#9ca3af'
+        };
+        return colors[type] || colors.default;
+    }
+
+    // --- Action Visualizations ---
+    function visualizeAction(action, currentTick) {
+        const data = action.data;
+        const { tick: startTick } = findActionByUUID(action.id);
+        if (startTick === -1) return;
+
+        const elapsedTicks = currentTick - startTick;
+        if (elapsedTicks < 0) return;
+
+        switch(action.type) {
+            case 'particle_shape':
+                visualizeAnimatedShape(data.shape, elapsedTicks, getActionColor(action.type));
+                break;
+            case 'particle_effect':
+                visualizeAnimatedEffect(data.effect, elapsedTicks, getActionColor(action.type));
+                break;
+            case 'particle_text':
+            case 'display_text':
+                 if (data.location && data.text && font) {
+                    const textGeo = new THREE.TextGeometry(data.text, { font, size: data.size, height: 0.1 });
+                    textGeo.center();
+                    const color = action.type === 'display_text' ? data.color : getActionColor(action.type);
+                    const textMat = new THREE.MeshBasicMaterial({ color: color });
+                    const textMesh = new THREE.Mesh(textGeo, textMat);
+                    const startLoc = new THREE.Vector3(data.location.x, data.location.y, data.location.z);
+                    const startRot = new THREE.Euler(THREE.MathUtils.degToRad(data.rotation.pitch), THREE.MathUtils.degToRad(data.rotation.yaw), THREE.MathUtils.degToRad(data.rotation.roll));
+
+                    if (data.endLocation && data.moveTime > 0) {
+                        let progress = elapsedTicks / data.moveTime;
+                        progress = Math.max(0, Math.min(1, progress));
+                        const endLoc = new THREE.Vector3(data.endLocation.x, data.endLocation.y, data.endLocation.z);
+                        textMesh.position.lerpVectors(startLoc, endLoc, progress);
+                        if (data.endRotation) {
+                            const endRot = new THREE.Euler(THREE.MathUtils.degToRad(data.endRotation.pitch), THREE.MathUtils.degToRad(data.endRotation.yaw), THREE.MathUtils.degToRad(data.endRotation.roll));
+                            const startQuat = new THREE.Quaternion().setFromEuler(startRot);
+                            const endQuat = new THREE.Quaternion().setFromEuler(endRot);
+                            textMesh.quaternion.slerpQuaternions(startQuat, endQuat, progress);
+                        } else {
+                            textMesh.rotation.copy(startRot);
+                        }
+                    } else {
+                        textMesh.position.copy(startLoc);
+                        textMesh.rotation.copy(startRot);
+                    }
+
+                    if (action.type === 'display_text' && data.billboard && data.billboard !== 'FIXED') {
+                        textMesh.lookAt(camera.position);
+                    }
+
+                    effectObjects.add(textMesh);
+                 }
+                break;
+        }
+    }
+
+    function visualizeAnimatedShape(shape, elapsedTicks, color) {
+        const lineMaterial = new THREE.LineBasicMaterial({ color: color, fog: false });
+
+        const delay = shape.delay || 0;
+        if (elapsedTicks < delay) return;
+
+        const timeAfterDelay = elapsedTicks - delay;
+        const moveTime = shape.moveTime || 0;
+        const moveProgress = moveTime > 0 ? Math.min(1, timeAfterDelay / moveTime) : 1;
+
+        const lerp = (start, end, progress) => start + (end - start) * progress;
+        const lerpVec = (start, end, progress) => new THREE.Vector3(
+            lerp(start.x, end.x, progress),
+            lerp(start.y, end.y, progress),
+            lerp(start.z, end.z, progress)
+        );
+
+        switch (shape.type) {
+            case 'line': {
+                const start = new THREE.Vector3(shape.start.x, shape.start.y, shape.start.z);
+                const end = new THREE.Vector3(shape.end.x, shape.end.y, shape.end.z);
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([start, end]);
+                effectObjects.add(new THREE.Line(lineGeo, lineMaterial));
+                break;
+            }
+            case 'arch': {
+                const start = new THREE.Vector3(shape.start.x, shape.start.y, shape.start.z);
+                const end = new THREE.Vector3(shape.end.x, shape.end.y, shape.end.z);
+                const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                mid.y += shape.height;
+                const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+                const points = curve.getPoints(50);
+                const archGeo = new THREE.BufferGeometry().setFromPoints(points);
+                effectObjects.add(new THREE.Line(archGeo, lineMaterial));
+                break;
+            }
+            case 'circle': {
+                const points = [];
+                const segments = 64;
+                for (let i = 0; i <= segments; i++) {
+                    const theta = (i / segments) * Math.PI * 2;
+                    points.push(new THREE.Vector3(Math.cos(theta) * shape.radius, Math.sin(theta) * shape.radius, 0));
+                }
+                const circleGeo = new THREE.BufferGeometry().setFromPoints(points);
+                const circle = new THREE.LineLoop(circleGeo, lineMaterial);
+                circle.position.set(shape.centre.x, shape.centre.y, shape.centre.z);
+                if (shape.rotation) {
+                     circle.rotation.set(
+                        THREE.MathUtils.degToRad(shape.rotation.pitch),
+                        THREE.MathUtils.degToRad(shape.rotation.yaw),
+                        THREE.MathUtils.degToRad(shape.rotation.roll)
+                    );
+                }
+                effectObjects.add(circle);
+                break;
+            }
+            case 'sphere': {
+                const currentRadius = shape.endRadius != null ? lerp(shape.radius, shape.endRadius, moveProgress) : shape.radius;
+                const sphereGeo = new THREE.SphereGeometry(currentRadius, 16, 8);
+                const wireframe = new THREE.LineSegments(new THREE.WireframeGeometry(sphereGeo), lineMaterial);
+                wireframe.position.copy(shape.centre);
+                effectObjects.add(wireframe);
+                break;
+            }
+             case 'hemisphere': {
+                const currentRadius = shape.endRadius != null ? lerp(shape.radius, shape.endRadius, moveProgress) : shape.radius;
+                const hemisphereGeo = new THREE.SphereGeometry(currentRadius, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+                const wireframe = new THREE.LineSegments(new THREE.WireframeGeometry(hemisphereGeo), lineMaterial);
+                wireframe.position.copy(shape.centre);
+                if (shape.rotation) {
+                    wireframe.rotation.set(
+                        THREE.MathUtils.degToRad(shape.rotation.pitch),
+                        THREE.MathUtils.degToRad(shape.rotation.yaw),
+                        THREE.MathUtils.degToRad(shape.rotation.roll)
+                    );
+                }
+                effectObjects.add(wireframe);
+                break;
+            }
+            case 'cube': {
+                 const startScale = new THREE.Vector3(shape.scale.x, shape.scale.y, shape.scale.z);
+                 const endScale = shape.endScale ? new THREE.Vector3(shape.endScale.x, shape.endScale.y, shape.endScale.z) : startScale;
+                 const currentScale = lerpVec(startScale, endScale, moveProgress);
+                 const cubeGeo = new THREE.BoxGeometry(currentScale.x, currentScale.y, currentScale.z);
+                 const wireframe = new THREE.LineSegments(new THREE.EdgesGeometry(cubeGeo), lineMaterial);
+                 wireframe.position.copy(shape.centre);
+                 if (shape.rotation) {
+                    wireframe.rotation.set(
+                        THREE.MathUtils.degToRad(shape.rotation.pitch),
+                        THREE.MathUtils.degToRad(shape.rotation.yaw),
+                        THREE.MathUtils.degToRad(shape.rotation.roll)
+                    );
+                 }
+                 effectObjects.add(wireframe);
+                 break;
+            }
+        }
+    }
+
+    function visualizeAnimatedEffect(effect, elapsedTicks, color) {
+        const lineMaterial = new THREE.LineBasicMaterial({ color: color, fog: false });
+        const transparentMaterial = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+
+        switch(effect.type) {
+            case 'bust':
+                if (elapsedTicks === 0) {
+                    const bustGeo = new THREE.SphereGeometry(effect.radius || 1, 16, 8);
+                    const sphere = new THREE.Mesh(bustGeo, transparentMaterial);
+                    sphere.position.copy(effect.location);
+                    if(effect.scale) sphere.scale.copy(effect.scale);
+                    effectObjects.add(sphere);
+                    setTimeout(() => scene.remove(sphere), 200);
+                }
+                break;
+            case 'area':
+                const pos1 = new THREE.Vector3(effect.pos1.x, effect.pos1.y, effect.pos1.z);
+                const pos2 = new THREE.Vector3(effect.pos2.x, effect.pos2.y, effect.pos2.z);
+                const size = new THREE.Vector3().subVectors(pos2, pos1).abs();
+                const center = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+                const areaGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
+                const wireframeGeo = new THREE.EdgesGeometry(areaGeo);
+                const box = new THREE.LineSegments(wireframeGeo, lineMaterial);
+                box.position.copy(center);
+                effectObjects.add(box);
+                break;
+            case 'laser':
+                const progress = effect.duration > 0 ? Math.min(1, elapsedTicks / effect.duration) : 1;
+                const currentWidth = (effect.startWidth || 0.1) + ((effect.endWidth || 1.0) - (effect.startWidth || 0.1)) * progress;
+                const start = new THREE.Vector3(effect.start.x, effect.start.y, effect.start.z);
+                const end = new THREE.Vector3(effect.end.x, effect.end.y, effect.end.z);
+                const distance = start.distanceTo(end);
+                const laserGeo = new THREE.CylinderGeometry(currentWidth / 2, currentWidth / 2, distance, 8, 1, true);
+                const laser = new THREE.Mesh(laserGeo, transparentMaterial);
+                laser.position.copy(start).lerp(end, 0.5);
+                laser.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(end, start).normalize());
+                effectObjects.add(laser);
+                break;
+        }
+    }
+
+
+    // --- Modal & Form Logic ---
+    function openModal(title, content, buttons) {
+        const modalContent = document.getElementById('modal-content');
+        modalContent.innerHTML = `<h2 class="text-2xl font-bold mb-4">${title}</h2><div id="modal-body"></div><div id="modal-footer" class="mt-6 flex justify-end space-x-4"></div>`;
+        document.getElementById('modal-body').appendChild(content);
+        const footer = document.getElementById('modal-footer');
+        buttons.forEach(btn => {
+            const buttonEl = document.createElement('button');
+            buttonEl.textContent = btn.text;
+            buttonEl.className = btn.className;
+            buttonEl.addEventListener('click', btn.onClick);
+            footer.appendChild(buttonEl);
+        });
+        document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('modal').classList.add('hidden');
+        transformControls.detach();
+    }
+
+    function createFormFields(parent, data, prefix = '') {
+        for (const key in data) {
+            const value = data[key];
+            const id = prefix ? `${prefix}-${key}` : key;
+
+            if (key === 'duration' && ['firework', 'light', 'music', 'command'].includes(editingAction.type)) continue;
+            if (key === 'id' || key === 'mirroredId' || key === 'particleData') continue;
+
+            if (key === 'particleType') {
+                const { type: parsedType, data: parsedData } = parseParticleString(value);
+                const div = document.createElement('div');
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.textContent = "Particle Type";
+                label.className = 'form-label';
+                const select = document.createElement('select');
+                select.id = id;
+                select.className = 'form-select';
+                select.name = id;
+                PARTICLE_LIST.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p;
+                    option.textContent = p;
+                    if (p.toLowerCase() === parsedType.toLowerCase()) option.selected = true;
+                    select.appendChild(option);
+                });
+
+                const specialContainer = document.createElement('div');
+                specialContainer.id = id + '-special-container';
+
+                select.onchange = () => {
+                    createSpecialParticleFields(specialContainer, select.value, {});
+                };
+
+                div.append(label, select, specialContainer);
+                parent.appendChild(div);
+                createSpecialParticleFields(specialContainer, parsedType, parsedData);
+                continue;
+            }
+             if (key === 'color' || key === 'backgroundColor') {
+                const div = document.createElement('div');
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.textContent = key;
+                label.className = 'form-label';
+                const input = document.createElement('input');
+                input.type = 'color';
+                input.id = id;
+                input.name = id;
+                input.value = value;
+                input.className = 'form-input p-1 h-10 w-full';
+                div.append(label, input);
+                parent.appendChild(div);
+                continue;
+            }
+            if (key === 'billboard' || key === 'alignment') {
+                const div = document.createElement('div');
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.textContent = key;
+                label.className = 'form-label';
+                const select = document.createElement('select');
+                select.id = id;
+                select.name = id;
+                select.className = 'form-select';
+                const options = key === 'billboard' ? ["FIXED", "VERTICAL", "HORIZONTAL", "CENTER"] : ["CENTER", "LEFT", "RIGHT"];
+                options.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt;
+                    option.textContent = opt;
+                    if (value === opt) option.selected = true;
+                    select.appendChild(option);
+                });
+                div.append(label, select);
+                parent.appendChild(div);
+                continue;
+            }
+
+
+            if (key === 'Colors' || key === 'FadeColors') {
+                createColorPickerArray(parent, key, value, id);
+                continue;
+            }
+
+            if (Array.isArray(value) && value.every(item => typeof item === 'object')) {
+                createArrayEditor(parent, key, value, id);
+                continue;
+            }
+
+            if (key === 'shape' || key === 'effect') {
+                const templates = key === 'shape' ? SHAPE_TEMPLATES : PARTICLE_EFFECT_TEMPLATES;
+                const fieldset = document.createElement('fieldset');
+                fieldset.className = 'my-4 border border-gray-600 p-3 rounded-md';
+                const legend = document.createElement('legend');
+                legend.className = 'px-2 text-lg font-semibold';
+                legend.textContent = key;
+
+                const typeSelectDiv = document.createElement('div');
+                typeSelectDiv.className = 'mb-4';
+                const typeLabel = document.createElement('label');
+                typeLabel.className = 'form-label';
+                typeLabel.textContent = 'Type';
+                const typeSelect = document.createElement('select');
+                typeSelect.className = 'form-select';
+                typeSelect.id = `${id}-type`;
+                typeSelect.name = `${id}-type`;
+                Object.keys(templates).forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type;
+                    option.textContent = type;
+                    if (value.type === type) option.selected = true;
+                    typeSelect.appendChild(option);
+                });
+                typeSelectDiv.append(typeLabel, typeSelect);
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'form-col';
+                contentDiv.id = `${id}-content`;
+                typeSelect.onchange = () => {
+                    const newShapeData = JSON.parse(JSON.stringify(templates[typeSelect.value]));
+                    contentDiv.innerHTML = '';
+                    createFormFields(contentDiv, newShapeData, id);
+                };
+
+                fieldset.append(legend, typeSelectDiv, contentDiv);
+                parent.appendChild(fieldset);
+                createFormFields(contentDiv, value, id);
+                continue;
+            }
+
+
+            if (typeof value === 'object' && value !== null) {
+                const fieldset = document.createElement('fieldset');
+                fieldset.className = 'my-4 border border-gray-600 p-3 rounded-md';
+                const legend = document.createElement('legend');
+                legend.className = 'px-2 text-lg font-semibold';
+                legend.textContent = key;
+                fieldset.appendChild(legend);
+                const grid = document.createElement('div');
+                grid.className = 'form-grid';
+                createFormFields(grid, value, id);
+                fieldset.appendChild(grid);
+                parent.appendChild(fieldset);
+            } else {
+                const div = document.createElement('div');
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.textContent = key;
+                label.className = 'form-label';
+
+                if (typeof value === 'boolean') {
+                    const checkbox = document.createElement('input');
+                    checkbox.id = id;
+                    checkbox.name = id;
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = value;
+                    checkbox.className = 'form-checkbox';
+                    div.classList.add('flex', 'items-center');
+                    div.append(checkbox, label);
+                } else {
+                    const input = document.createElement('input');
+                    input.id = id;
+                    input.name = id;
+                    input.value = value;
+                    input.className = 'form-input';
+                    if (typeof value === 'number') input.type = 'number';
+                    div.append(label, input);
+                }
+                parent.appendChild(div);
+            }
+        }
+    }
+
+    function createArrayEditor(parent, key, values, id) {
+        const fieldset = document.createElement('fieldset');
+        fieldset.className = 'my-4 border border-gray-600 p-3 rounded-md';
+        const legend = document.createElement('legend');
+        legend.className = 'px-2 text-lg font-semibold';
+        legend.textContent = key;
+        fieldset.appendChild(legend);
+
+        const itemContainer = document.createElement('div');
+        itemContainer.id = id + '-container';
+        fieldset.appendChild(itemContainer);
+
+        const redraw = (currentValues) => {
+            itemContainer.innerHTML = '';
+            currentValues.forEach((item, index) => {
+                const itemEl = document.createElement('div');
+                itemEl.className = 'array-item';
+                itemEl.dataset.index = index;
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = '✕';
+                removeBtn.className = 'absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full text-xs';
+                removeBtn.onclick = () => {
+                    currentValues.splice(index, 1);
+                    redraw(currentValues);
+                };
+                itemEl.appendChild(removeBtn);
+
+                createFormFields(itemEl, item, `${id}-${index}`);
+                itemContainer.appendChild(itemEl);
+            });
+        };
+
+        const addButton = document.createElement('button');
+        addButton.type = 'button';
+        addButton.textContent = `Add ${key.slice(0, -1)}`;
+        addButton.className = 'mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-3 rounded-lg text-sm';
+        addButton.onclick = () => {
+            const newItem = JSON.parse(JSON.stringify(ACTION_TEMPLATES.firework.nbt.Fireworks.Explosions[0]));
+            values.push(newItem);
+            redraw(values);
+        };
+
+        fieldset.appendChild(addButton);
+        parent.appendChild(fieldset);
+        redraw(values);
+    }
+
+    function createColorPickerArray(parent, key, values, id) {
+        const fieldset = document.createElement('fieldset');
+        fieldset.className = 'my-4 border border-gray-600 p-3 rounded-md';
+        const legend = document.createElement('legend');
+        legend.className = 'px-2 text-lg font-semibold';
+        legend.textContent = key;
+        fieldset.appendChild(legend);
+
+        const colorContainer = document.createElement('div');
+        colorContainer.id = id + '-container';
+        fieldset.appendChild(colorContainer);
+
+        const redraw = (currentValues) => {
+            colorContainer.innerHTML = '';
+            (currentValues || []).forEach((val, index) => {
+                const group = document.createElement('div');
+                group.className = 'color-input-group';
+
+                const picker = document.createElement('input');
+                picker.type = 'color';
+                picker.value = decimalToHex(val);
+                picker.className = 'p-1 h-10 w-10 block bg-gray-700 border border-gray-600 cursor-pointer rounded-lg disabled:opacity-50 disabled:pointer-events-none';
+                picker.dataset.index = index;
+                picker.onchange = () => {
+                    currentValues[index] = hexToDecimal(picker.value);
+                };
+
+                const randomBtn = document.createElement('button');
+                randomBtn.type = 'button';
+                randomBtn.textContent = 'Rand';
+                randomBtn.className = 'bg-sky-600 hover:bg-sky-700 text-white font-bold py-1 px-2 rounded-lg text-xs';
+                randomBtn.onclick = () => {
+                    picker.value = decimalToHex(Math.floor(Math.random()*16777215));
+                    picker.dispatchEvent(new Event('change'));
+                };
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = '✕';
+                removeBtn.className = 'bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-lg text-xs';
+                removeBtn.onclick = () => {
+                    currentValues.splice(index, 1);
+                    redraw(currentValues);
+                };
+
+                group.append(picker, randomBtn, removeBtn);
+                colorContainer.appendChild(group);
+            });
+        };
+
+        const addButton = document.createElement('button');
+        addButton.type = 'button';
+        addButton.textContent = `Add Color`;
+        addButton.className = 'mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-3 rounded-lg text-sm';
+        addButton.onclick = () => {
+            values.push(11743532); // Default red
+            redraw(values);
+        };
+        fieldset.appendChild(addButton);
+        parent.appendChild(fieldset);
+        redraw(values);
+    }
+
+    function createSpecialParticleFields(container, particleType, particleData) {
+        container.innerHTML = '';
+        const createInput = (name, type, value, labelText) => {
+            const div = document.createElement('div');
+            const label = document.createElement('label');
+            label.className = 'form-label text-sm';
+            label.textContent = labelText || name;
+            const input = document.createElement('input');
+            input.type = type;
+            input.id = `particleData-${name}`;
+            input.value = value;
+            input.className = 'form-input p-1';
+            div.append(label, input);
+            return div;
+        };
+
+        switch(particleType.toUpperCase()) {
+            case 'DUST':
+                const grid = document.createElement('div');
+                grid.className = 'grid grid-cols-4 gap-2 mt-2';
+                grid.append(
+                    createInput('r', 'number', particleData.r ?? 255, 'R'),
+                    createInput('g', 'number', particleData.g ?? 0, 'G'),
+                    createInput('b', 'number', particleData.b ?? 0, 'B'),
+                    createInput('size', 'number', particleData.size ?? 1, 'Size')
+                );
+                container.appendChild(grid);
+                break;
+            case 'DUST_COLOR_TRANSITION':
+                 const grid2 = document.createElement('div');
+                grid2.className = 'grid grid-cols-4 gap-2 mt-2';
+                 grid2.append(
+                    createInput('r1', 'number', particleData.r1 ?? 255, 'R1'),
+                    createInput('g1', 'number', particleData.g1 ?? 0, 'G1'),
+                    createInput('b1', 'number', particleData.b1 ?? 0, 'B1'),
+                    createInput('size', 'number', particleData.size ?? 1, 'Size'),
+                    createInput('r2', 'number', particleData.r2 ?? 0, 'R2'),
+                    createInput('g2', 'number', particleData.g2 ?? 0, 'G2'),
+                    createInput('b2', 'number', particleData.b2 ?? 255, 'B2')
+                );
+                container.appendChild(grid2);
+                break;
+            case 'ITEM':
+            case 'BLOCK':
+            case 'FALLING_DUST':
+                container.appendChild(createInput('material', 'text', particleData.material ?? 'stone', 'Material'));
+                break;
+            case 'SHRIEK':
+                container.appendChild(createInput('delay', 'number', particleData.delay ?? 0, 'Delay'));
+                break;
+        }
+    }
+
+    function parseParticleString(particleString) {
+        const parts = (particleString || 'flame').split(' ');
+        const type = parts[0];
+        const data = {};
+        const upperType = type.toUpperCase();
+
+        try {
+            switch(upperType) {
+                case 'DUST':
+                    data.r = parseFloat(parts[1]);
+                    data.g = parseFloat(parts[2]);
+                    data.b = parseFloat(parts[3]);
+                    data.size = parseFloat(parts[4]);
+                    break;
+                case 'DUST_COLOR_TRANSITION':
+                    data.r1 = parseFloat(parts[1]);
+                    data.g1 = parseFloat(parts[2]);
+                    data.b1 = parseFloat(parts[3]);
+                    data.size = parseFloat(parts[4]);
+                    data.r2 = parseFloat(parts[5]);
+                    data.g2 = parseFloat(parts[6]);
+                    data.b2 = parseFloat(parts[7]);
+                    break;
+                case 'ITEM':
+                case 'BLOCK':
+                case 'FALLING_DUST':
+                    data.material = parts[1];
+                    break;
+                case 'SHRIEK':
+                    data.delay = parseInt(parts[1]);
+                    break;
+            }
+        } catch (e) {
+            console.error("Error parsing particle string:", particleString, e);
+        }
+        return { type, data };
+    }
+
+
+    function decimalToHex(d) {
+        let hex = Number(d).toString(16);
+        hex = "000000".substr(0, 6 - hex.length) + hex;
+        return "#" + hex;
+    }
+
+    function hexToDecimal(hex) {
+        return parseInt(hex.replace("#", ""), 16);
+    }
+
+    // --- Add/Edit/Delete Logic ---
+    function showAddActionDialog(location = null) {
+        const container = document.createElement('div');
+        Object.keys(ACTION_TEMPLATES).forEach(type => {
+            const btn = document.createElement('button');
+            btn.textContent = type;
+            btn.className = 'selection-btn bg-gray-700 hover:bg-gray-600';
+            btn.onclick = () => showAddActionForm(type, location);
+            container.appendChild(btn);
+        });
+        openModal('Select Action Type', container, [{ text: 'Cancel', className: 'bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg', onClick: closeModal }]);
+    }
+
+    function showAddActionForm(type, location = null) {
+        const template = JSON.parse(JSON.stringify(ACTION_TEMPLATES[type]));
+
+        if (location) {
+            const loc = {
+                x: parseFloat(location.x.toFixed(2)),
+                y: parseFloat(location.y.toFixed(2)),
+                z: parseFloat(location.z.toFixed(2))
+            };
+            if (template.location) template.location = loc;
+            if (template.shape?.centre) template.shape.centre = loc;
+            if (template.shape?.start) template.shape.start = loc;
+            if (template.effect?.location) template.effect.location = loc;
+        }
+
+        const form = document.createElement('form');
+        editingAction.type = type;
+        createFormFields(form, template);
+        editingAction.type = null;
+
+        const saveButton = {
+            text: 'Create Action',
+            className: 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg',
+            onClick: () => {
+                const tick = Math.floor(wavesurfer.getCurrentTime() * 20);
+                if (!showData.frames) showData.frames = {};
+                if (!showData.frames[tick]) showData.frames[tick] = { actions: [] };
+                const newActionData = readForm(form);
+                const newAction = { type, data: newActionData, id: crypto.randomUUID() };
+                showData.frames[tick].actions.push(newAction);
+
+                if (document.getElementById('mirror-enabled').checked) {
+                    const mirroredAction = createMirroredAction(newAction);
+                    if (mirroredAction) {
+                        showData.frames[tick].actions.push(mirroredAction);
+                    }
+                }
+
+                closeModal();
+                commitChange();
+            }
+        };
+        openModal(`Add ${type} Action`, form, [
+            { text: 'Cancel', className: 'bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg', onClick: closeModal },
+            saveButton
+        ]);
+    }
+
+    function showAddStagePointDialog() {
+        const container = document.createElement('div');
+        Object.keys(STAGE_POINT_TEMPLATES).forEach(type => {
+            const btn = document.createElement('button');
+            btn.textContent = type;
+            btn.className = 'selection-btn bg-teal-700 hover:bg-teal-600';
+            btn.onclick = () => showAddStagePointForm(type);
+            container.appendChild(btn);
+        });
+        openModal('Select Stage Point Type', container, [{ text: 'Cancel', className: 'bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg', onClick: closeModal }]);
+    }
+
+    function showAddStagePointForm(type) {
+        const template = JSON.parse(JSON.stringify(STAGE_POINT_TEMPLATES[type]));
+        const form = document.createElement('form');
+        createFormFields(form, template);
+        const saveButton = {
+            text: 'Create Stage Point',
+            className: 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg',
+            onClick: () => {
+                const key = type + 's';
+                if (!showData.stage) showData.stage = {};
+                if (!showData.stage[key]) showData.stage[key] = [];
+                const newData = readForm(form);
+                newData.id = crypto.randomUUID();
+                showData.stage[key].push(newData);
+
+                if (document.getElementById('mirror-enabled').checked) {
+                    const mirroredData = createMirroredStagePoint(newData);
+                    showData.stage[key].push(mirroredData);
+                }
+
+                closeModal();
+                commitChange();
+            }
+        };
+        openModal(`Add ${type}`, form, [
+            { text: 'Cancel', className: 'bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg', onClick: closeModal },
+            saveButton
+        ]);
+    }
+
+    function openActionEditor(tick, index) {
+        const action = showData.frames[tick].actions[index];
+        editingAction = { tick, index, type: action.type };
+        const form = document.createElement('form');
+        form.id = 'modal-content form';
+        const tickDiv = document.createElement('div');
+        tickDiv.className = 'mb-4';
+        const tickLabel = document.createElement('label');
+        tickLabel.htmlFor = 'action-start-tick';
+        tickLabel.textContent = 'Start Tick';
+        tickLabel.className = 'form-label';
+        const tickInput = document.createElement('input');
+        tickInput.type = 'number';
+        tickInput.id = 'action-start-tick';
+        tickInput.name = 'action-start-tick';
+        tickInput.value = tick;
+        tickInput.className = 'form-input';
+        tickDiv.append(tickLabel, tickInput);
+        form.appendChild(tickDiv);
+
+        createFormFields(form, action.data);
+
+        const buttons = [
+            { text: 'Delete', className: 'bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg', onClick: deleteAction },
+            { text: 'Cancel', className: 'bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg', onClick: closeModal },
+            { text: 'Save', className: 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg', onClick: saveAction }
+        ];
+
+        openModal(`Edit Action: ${action.type}`, form, buttons);
+
+        const loc = action.data.location || action.data.shape?.start || action.data.shape?.centre || action.data.effect?.location;
+        if (loc) {
+            transformProxy.position.set(loc.x, loc.y, loc.z);
+            if (action.data.rotation) {
+                transformProxy.rotation.set(THREE.MathUtils.degToRad(action.data.rotation.pitch), THREE.MathUtils.degToRad(action.data.rotation.yaw), THREE.MathUtils.degToRad(action.data.rotation.roll));
+            }
+            transformControls.attach(transformProxy);
+        }
+    }
+
+    function saveAction() {
+        const { tick, index } = editingAction;
+        if (tick === null || index === null) return;
+
+        const form = document.querySelector('#modal-content form');
+        const newTick = parseInt(form.querySelector('#action-start-tick').value);
+
+        let action = showData.frames[tick].actions[index];
+
+        action.data = readForm(form);
+
+        if (newTick !== parseInt(tick)) {
+            const [movedAction] = showData.frames[tick].actions.splice(index, 1);
+            if (showData.frames[tick].actions.length === 0) {
+                delete showData.frames[tick];
+            }
+
+            if (!showData.frames[newTick]) {
+                showData.frames[newTick] = { actions: [] };
+            }
+            showData.frames[newTick].actions.push(movedAction);
+        }
+
+        closeModal();
+        commitChange();
+    }
+
+
+    function deleteAction() {
+        const { tick, index } = editingAction;
+        if (tick !== null && index !== null && confirm('Are you sure you want to delete this action?')) {
+            showData.frames[tick].actions.splice(index, 1);
+            if (showData.frames[tick].actions.length === 0) delete showData.frames[tick];
+            closeModal();
+            commitChange();
+        }
+    }
+
+    function readForm(form) {
+        const data = {};
+        const inputs = form.querySelectorAll('input, select');
+
+        inputs.forEach(input => {
+            if (!input.id || input.id === 'action-start-tick' || !input.name) return;
+
+            const keys = input.name.split('-');
+            let current = data;
+
+            for (let i = 0; i < keys.length - 1; i++) {
+                const key = keys[i];
+                current = current[key] = current[key] || {};
+            }
+
+            const finalKey = keys[keys.length - 1];
+            if (input.type === 'checkbox') {
+                current[finalKey] = input.checked;
+            } else if (input.type === 'number') {
+                const val = parseFloat(input.value);
+                current[finalKey] = isNaN(val) ? null : val;
+            } else {
+                current[finalKey] = input.value;
+            }
+        });
+
+        const cleanupTypedObject = (obj, key) => {
+            if (obj && obj[key]) {
+                const templates = key === 'shape' ? SHAPE_TEMPLATES : PARTICLE_EFFECT_TEMPLATES;
+                const type = obj[key].type;
+                if (type && templates[type]) {
+                    const validKeys = Object.keys(templates[type]);
+                    const cleanObject = {};
+                    validKeys.forEach(validKey => {
+                        if (obj[key].hasOwnProperty(validKey)) {
+                            cleanObject[validKey] = obj[key][validKey];
+                        }
+                    });
+                    obj[key] = cleanObject;
+                }
+            }
+        };
+
+        cleanupTypedObject(data, 'shape');
+        cleanupTypedObject(data, 'effect');
+
+        return data;
+    }
+
+
+
+    function handleTransformChange() {
+        if (!transformControls.object) return;
+
+        const targetProxy = transformControls.object;
+        const newPos = targetProxy.position;
+        const newRot = targetProxy.rotation;
+
+        const updateLocation = (obj, prop) => {
+            if (!obj[prop]) obj[prop] = {};
+            obj[prop].x = parseFloat(newPos.x.toFixed(4));
+            obj[prop].y = parseFloat(newPos.y.toFixed(4));
+            obj[prop].z = parseFloat(newPos.z.toFixed(4));
+        };
+
+        const updateRotation = (obj, prop, isCamera = false) => {
+             if (!obj[prop]) obj[prop] = {};
+             let yaw = THREE.MathUtils.radToDeg(newRot.y);
+             if (isCamera) yaw = -yaw;
+             obj[prop].yaw = parseFloat(yaw.toFixed(2));
+             obj[prop].pitch = parseFloat(THREE.MathUtils.radToDeg(newRot.x).toFixed(2));
+             obj[prop].roll = parseFloat(THREE.MathUtils.radToDeg(newRot.z).toFixed(2));
+        };
+
+        if (selectedParticlePath.pathIndex !== -1 && selectedParticlePath.pointIndex !== -1) {
+            const point = showData.particlePaths[selectedParticlePath.pathIndex].points[selectedParticlePath.pointIndex];
+            if (point) {
+                updateLocation(point, 'location');
+            }
+        } else if (selectedCameraPointIndex !== -1) {
+            const point = showData.cameraMovements[selectedCameraPointIndex];
+            if (point) {
+                updateLocation(point, 'location');
+                updateRotation(point, 'rotation', true);
+            }
+        } else if (selectedActionUUIDs.size === 1) {
+            const [uuid] = selectedActionUUIDs;
+            const { action } = findActionByUUID(uuid);
+            if (!action) return;
+
+            if (action.data.shape?.type === 'arch' && archEditMode !== 'height') {
+                 if (archEditMode === 'start') updateLocation(action.data.shape, 'start');
+                 if (archEditMode === 'end') updateLocation(action.data.shape, 'end');
+            } else if (action.data.shape?.type === 'arch' && archEditMode === 'height') {
+                const start = new THREE.Vector3(action.data.shape.start.x, action.data.shape.start.y, action.data.shape.start.z);
+                const end = new THREE.Vector3(action.data.shape.end.x, action.data.shape.end.y, action.data.shape.end.z);
+                const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                action.data.shape.height = newPos.y - mid.y;
+            } else if (action.data.effect?.type === 'area') {
+                 if (areaEditMode === 'pos1') updateLocation(action.data.effect, 'pos1');
+                 if (areaEditMode === 'pos2') updateLocation(action.data.effect, 'pos2');
+            } else if (editingTarget === 'end') {
+                updateLocation(action.data, 'endLocation');
+                updateRotation(action.data, 'endRotation');
+            } else {
+                if (action.data.location) updateLocation(action.data, 'location');
+                else if (action.data.shape?.start) updateLocation(action.data.shape, 'start');
+                else if (action.data.shape?.centre) updateLocation(action.data.shape, 'centre');
+                else if (action.data.effect?.location) updateLocation(action.data.effect, 'location');
+
+                if (action.data.rotation) updateRotation(action.data, 'rotation');
+                else if (action.data.shape?.rotation) updateRotation(action.data.shape, 'rotation');
+            }
+
+        } else if (selectedStageObjectUUID) {
+            const { item } = findStageObjectByUUID(selectedStageObjectUUID);
+            if (item) {
+                item.location.x = parseFloat(transformProxy.position.x.toFixed(4));
+                item.location.y = parseFloat(transformProxy.position.y.toFixed(4));
+                item.location.z = parseFloat(transformProxy.position.z.toFixed(4));
+            }
+        }
+
+        updateUIFromData(false);
+    }
+
+    // --- Animation & Rendering Loop ---
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+        const currentTick = wavesurfer.isPlaying() ? Math.floor(wavesurfer.getCurrentTime() * 20) : parseInt(document.getElementById('tick-input').value);
+        if (!isNaN(currentTick)) updatePlayhead(currentTick, wavesurfer.isPlaying());
+    }
+
+    function updatePlayhead(tick, isPlaying = false) {
+        const playhead = document.querySelector('.playhead');
+        playhead.style.left = `${tick * TICK_WIDTH}px`;
+        if (document.activeElement !== document.getElementById('tick-input')) {
+            document.getElementById('tick-input').value = tick;
+        }
+
+        const fadeDistance = 25;
+        locationMarkers.children.forEach(marker => {
+            const start = marker.userData.startTick;
+            const end = start + marker.userData.duration;
+            const isActive = tick >= start && tick < end;
+
+            marker.geometry = isActive ? activeMarkerGeo : inactiveMarkerGeo;
+
+            let distance = isActive ? 0 : (tick < start ? start - tick : tick - end);
+            marker.material.opacity = Math.max(0.15, 1 - (distance / fadeDistance));
+
+            const action = marker.userData.action;
+            if (action.data.endLocation && action.data.moveTime > 0) {
+                let progress = (tick - start) / action.data.moveTime;
+                progress = Math.max(0, Math.min(1, progress));
+                const startLoc = new THREE.Vector3(action.data.location.x, action.data.location.y, action.data.location.z);
+                const endLoc = new THREE.Vector3(action.data.endLocation.x, action.data.endLocation.y, action.data.endLocation.z);
+                marker.position.lerpVectors(startLoc, endLoc, progress);
+            } else {
+                const loc = action.data.location || action.data.shape?.centre || action.data.shape?.start || action.data.effect?.location;
+                if (loc) {
+                    marker.position.set(loc.x, loc.y, loc.z);
+                }
+            }
+        });
+
+        stageObjects.children.forEach(obj => {
+            const { item } = findStageObjectByUUID(obj.userData.id);
+            if (item) {
+                obj.position.copy(item.location);
+            }
+        });
+
+        const hasCameraPath = showData.cameraMovements && showData.cameraMovements.length > 0;
+        playheadCameraHelper.visible = hasCameraPath;
+        if (hasCameraPath) {
+            const { position, rotation } = getInterpolatedCameraState(tick);
+            playheadCameraHelper.position.copy(position);
+            playheadCameraHelper.rotation.set(
+                THREE.MathUtils.degToRad(rotation.pitch),
+                THREE.MathUtils.degToRad(-rotation.yaw),
+                THREE.MathUtils.degToRad(rotation.roll),
+                'YXZ'
+            );
+
+            if (isCameraViewActive) {
+                controls.enabled = false;
+                camera.position.copy(position);
+                camera.rotation.set(
+                    THREE.MathUtils.degToRad(rotation.pitch),
+                    THREE.MathUtils.degToRad(-rotation.yaw),
+                    THREE.MathUtils.degToRad(rotation.roll),
+                    'YXZ'
+                );
+            } else if (!controls.enabled) {
+                controls.enabled = true;
+            }
+        }
+
+
+        if(isPlaying) {
+            effectObjects.clear();
+            activeLasers = {};
+            if (showData.frames) {
+                const sortedFrames = Object.entries(showData.frames).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+                for (const [frameTickStr, frame] of sortedFrames) {
+                    const frameTick = parseInt(frameTickStr);
+                    if (frameTick > tick) break;
+                    frame.actions.forEach(action => {
+                        const duration = action.data.duration || 0;
+                        if (tick >= frameTick && tick < frameTick + duration) {
+                            visualizeAction(action, tick);
+                        }
+                        if (action.type === 'guardian_laser' || action.type === 'crystal_laser') {
+                            const sources = stageObjects.children.filter(obj => action.data.group && obj.userData.groups?.includes(action.data.group) || action.data.name && obj.userData.name === action.data.name);
+                            sources.forEach(source => {
+                                if (action.data.state === 'off') {
+                                    delete activeLasers[source.userData.name];
+                                } else {
+                                    const currentPos = activeLasers[source.userData.name] ? activeLasers[source.userData.name].endPos : source.position;
+                                    activeLasers[source.userData.name] = { startPos: source.position, startMovePos: new THREE.Vector3().copy(currentPos), endPos: new THREE.Vector3(action.data.endPos.x, action.data.endPos.y, action.data.endPos.z), moveStartTime: frameTick, moveDuration: action.data.duration, type: action.type };
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+            Object.values(activeLasers).forEach(laser => {
+                let progress = (tick - laser.moveStartTime) / laser.moveDuration;
+                progress = Math.max(0, Math.min(1, progress));
+                const currentEnd = new THREE.Vector3().lerpVectors(laser.startMovePos, laser.endPos, progress);
+                const color = laser.type === 'crystal_laser' ? 0xcc33ff : 0x33ff99;
+                effectObjects.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([laser.startPos, currentEnd]), new THREE.LineBasicMaterial({ color, linewidth: 2 })));
+            });
+        } else {
+            effectObjects.clear();
+            updateSelectionVisuals();
+        }
+    }
+
+    function onWindowResize() {
+        const viewportContainer = document.getElementById('viewport-container');
+        camera.aspect = viewportContainer.clientWidth / viewportContainer.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(viewportContainer.clientWidth, viewportContainer.clientHeight);
+        wavesurfer.drawBuffer();
+    }
+
+    function generateColorMap() {
+        const colorMap = [];
+        for (let i = 0; i < 256; i++) {
+            const r = i / 255;
+            const g = (255 - i) / 255;
+            const b = 0;
+            const a = 1;
+            colorMap.push([r, g, b, a]);
+        }
+        return colorMap;
+    }
+
+    // --- Utility Functions ---
+    function findActionByUUID(uuid) {
+        if (!showData.frames) return { tick: -1, index: -1, action: null };
+        for (const tick in showData.frames) {
+            const index = showData.frames[tick].actions.findIndex(a => a.id === uuid);
+            if (index !== -1) {
+                return { tick: parseInt(tick), index, action: showData.frames[tick].actions[index] };
+            }
+        }
+        return { tick: -1, index: -1, action: null };
+    }
+
+    function findStageObjectByUUID(uuid) {
+        if (!showData.stage) return { item: null, type: null, index: -1 };
+        const stagePointTypes = ['lasers', 'lights', 'effectPoints'];
+        for (const type of stagePointTypes) {
+            if (showData.stage[type]) {
+                const index = showData.stage[type].findIndex(item => item.id === uuid);
+                if (index !== -1) {
+                    return { item: showData.stage[type][index], type, index };
+                }
+            }
+        }
+        return { item: null, type: null, index: -1 };
+    }
+
+    function updateTransformControls() {
+        const endStateLabel = document.getElementById('edit-end-state-label');
+        const archControls = document.getElementById('arch-controls');
+        const areaControls = document.getElementById('area-controls');
+
+        transformControls.detach();
+        endStateLabel.classList.add('hidden');
+        archControls.classList.add('hidden');
+        areaControls.classList.add('hidden');
+
+        let targetProxy = null;
+
+        if (selectedParticlePath.pathIndex !== -1 && selectedParticlePath.pointIndex !== -1) {
+            const point = showData.particlePaths[selectedParticlePath.pathIndex].points[selectedParticlePath.pointIndex];
+            if (point) {
+                transformProxyParticlePath.position.copy(point.location);
+                targetProxy = transformProxyParticlePath;
+            }
+        } else if (selectedCameraPointIndex !== -1) {
+            const point = showData.cameraMovements[selectedCameraPointIndex];
+            if (point) {
+                transformProxyCamera.position.copy(point.location);
+                transformProxyCamera.rotation.set(
+                    THREE.MathUtils.degToRad(point.rotation.pitch),
+                    THREE.MathUtils.degToRad(-point.rotation.yaw),
+                    THREE.MathUtils.degToRad(point.rotation.roll),
+                    'YXZ'
+                );
+                targetProxy = transformProxyCamera;
+            }
+        } else if (selectedStageObjectUUID) {
+             const { item } = findStageObjectByUUID(selectedStageObjectUUID);
+             if (item && item.location) {
+                transformProxy.position.copy(item.location);
+                targetProxy = transformProxy;
+             }
+        } else if (selectedActionUUIDs.size === 1) {
+            const [uuid] = selectedActionUUIDs;
+            const { action } = findActionByUUID(uuid);
+            if (!action) return;
+
+            const data = action.data;
+            if (data.shape?.type === 'arch') {
+                archControls.classList.remove('hidden');
+                setArchEditMode(archEditMode);
+                return;
+            }
+            if (data.effect?.type === 'area') {
+                areaControls.classList.remove('hidden');
+                setAreaEditMode(areaEditMode);
+                return;
+            }
+
+            if(data.endLocation !== undefined) {
+                endStateLabel.classList.remove('hidden');
+                endStateLabel.style.display = 'flex';
+                document.getElementById('edit-end-state-checkbox').checked = editingTarget === 'end';
+            }
+
+            if (editingTarget === 'end') {
+                 if (!data.endLocation) data.endLocation = { ...data.location };
+                 if (!data.endRotation) data.endRotation = { ...data.rotation };
+                transformProxyEnd.position.copy(data.endLocation);
+                if(data.endRotation) transformProxyEnd.rotation.set(THREE.MathUtils.degToRad(data.endRotation.pitch), THREE.MathUtils.degToRad(data.endRotation.yaw), THREE.MathUtils.degToRad(data.endRotation.roll));
+                targetProxy = transformProxyEnd;
+            } else {
+                const loc = data.location || data.shape?.start || data.shape?.centre || data.effect?.location;
+                const rot = data.rotation || data.shape?.rotation;
+                if(loc) {
+                    transformProxy.position.copy(loc);
+                    if(rot) transformProxy.rotation.set(THREE.MathUtils.degToRad(rot.pitch), THREE.MathUtils.degToRad(rot.yaw), THREE.MathUtils.degToRad(rot.roll));
+                    else transformProxy.rotation.set(0,0,0);
+                    targetProxy = transformProxy;
+                }
+            }
+        }
+
+        if (targetProxy) {
+            transformControls.attach(targetProxy);
+        }
+    }
+
+    // --- History Management ---
+    function recordHistory() {
+        const state = JSON.stringify(showData);
+        if (historyIndex < historyStack.length - 1) {
+            historyStack = historyStack.slice(0, historyIndex + 1);
+        }
+        if (historyStack[historyIndex] === state) return;
+        historyStack.push(state);
+        historyIndex = historyStack.length - 1;
+    }
+
+    function undo() {
+        if (historyIndex > 0) {
+            historyIndex--;
+            showData = JSON.parse(historyStack[historyIndex]);
+            updateUIFromData();
+        }
+    }
+
+    function redo() {
+        if (historyIndex < historyStack.length - 1) {
+            historyIndex++;
+            showData = JSON.parse(historyStack[historyIndex]);
+            updateUIFromData();
+        }
+    }
+
+    // --- Keyboard Controls ---
+    function handleKeyDown(event) {
+        if (document.querySelector('.modal-backdrop:not(.hidden)')) return;
+        const activeEl = document.activeElement;
+        if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {
+            if (event.code === 'Escape') activeEl.blur();
+            return;
+        }
+
+        if (event.code === 'Space') {
+            event.preventDefault();
+            wavesurfer.playPause();
+        } else if (event.code === 'KeyA' && !event.shiftKey) {
+            event.preventDefault();
+            showAddActionDialog();
+        } else if (event.code === 'KeyA' && event.shiftKey) {
+            event.preventDefault();
+            addActionAtCursor();
+        } else if (event.code === 'KeyE') {
+            if (selectedActionUUIDs.size === 1) {
+                const [uuid] = selectedActionUUIDs;
+                const { tick, index } = findActionByUUID(uuid);
+                if (tick !== -1) openActionEditor(tick, index);
+            }
+        } else if (event.code === 'KeyM') {
+            event.preventDefault();
+            const currentTick = parseInt(document.getElementById('tick-input').value);
+            if (!isNaN(currentTick)) {
+                if (!showData.timelineMarkers) {
+                    showData.timelineMarkers = [];
+                }
+                if (!showData.timelineMarkers.includes(currentTick)) {
+                    showData.timelineMarkers.push(currentTick);
+                    showData.timelineMarkers.sort((a,b) => a - b);
+                } else {
+                    showData.timelineMarkers = showData.timelineMarkers.filter(t => t !== currentTick);
+                }
+                drawTimelineMarkers();
+                recordHistory();
+            }
+        } else if (event.code === 'KeyR') {
+            setTransformMode('rotate');
+        } else if (event.code === 'Delete' || event.code === 'Backspace') {
+            if (selectedActionUUIDs.size > 0) {
+                if (confirm(`Are you sure you want to delete ${selectedActionUUIDs.size} selected action(s)?`)) {
+                    const mirroredIdsToDelete = new Set();
+
+                    selectedActionUUIDs.forEach(uuid => {
+                        const { action } = findActionByUUID(uuid);
+                        if (action && action.mirroredId) {
+                            mirroredIdsToDelete.add(action.mirroredId);
+                        }
+                    });
+
+                    const allUuidsToDelete = new Set([...selectedActionUUIDs, ...mirroredIdsToDelete]);
+
+                    allUuidsToDelete.forEach(uuid => {
+                        const { tick, index } = findActionByUUID(uuid);
+                        if (tick !== -1) {
+                            showData.frames[tick].actions.splice(index, 1);
+                            if (showData.frames[tick].actions.length === 0) {
+                                delete showData.frames[tick];
+                            }
+                        }
+                    });
+
+                    deselectAll();
+                    commitChange();
+                }
+            } else if (selectedStageObjectUUID) {
+                if(confirm('Delete selected stage object?')) {
+                    deleteStageObject(selectedStageObjectUUID);
+                }
+            } else if (selectedCameraPointIndex !== -1) {
+                 if(confirm('Delete selected camera point?')) {
+                    deleteCameraPoint(selectedCameraPointIndex);
+                }
+            } else if (selectedParticlePath.pathIndex !== -1) {
+                if (selectedParticlePath.pointIndex !== -1) {
+                    if(confirm('Delete selected path point?')) {
+                        deleteParticlePathPoint(selectedParticlePath.pathIndex, selectedParticlePath.pointIndex);
+                    }
+                } else {
+                     if(confirm('Delete selected particle path?')) {
+                        deleteParticlePath(selectedParticlePath.pathIndex);
+                    }
+                }
+            }
+        }  else if ((event.ctrlKey || event.metaKey) && event.code === 'KeyZ') {
+            event.preventDefault();
+            undo();
+        } else if ((event.ctrlKey || event.metaKey) && event.code === 'KeyY') {
+            event.preventDefault();
+            redo();
+        }
+    }
+
+    // --- Mirror, Mouse Coords, & Stage Editor ---
+    function getMirroredLocation(location) {
+        const mirroredLoc = { ...location };
+        const mirrorPos = new THREE.Vector3(
+            parseFloat(document.getElementById('mirror-x').value),
+            parseFloat(document.getElementById('mirror-y').value),
+            parseFloat(document.getElementById('mirror-z').value)
+        );
+        const axis = document.getElementById('mirror-axis').value;
+        mirroredLoc[axis] = mirrorPos[axis] - (location[axis] - mirrorPos[axis]);
+        return mirroredLoc;
+    }
+
+    function updateMirrorPlane() {
+        mirrorPlane.visible = document.getElementById('mirror-enabled').checked;
+        if (!mirrorPlane.visible) return;
+
+        const x = parseFloat(document.getElementById('mirror-x').value);
+        const y = parseFloat(document.getElementById('mirror-y').value);
+        const z = parseFloat(document.getElementById('mirror-z').value);
+        const axis = document.getElementById('mirror-axis').value;
+
+        mirrorPlane.position.set(x, y, z);
+        mirrorPlane.rotation.set(0, 0, 0);
+        if (axis === 'x') mirrorPlane.rotateY(Math.PI / 2);
+        else if (axis === 'y') mirrorPlane.rotateX(Math.PI / 2);
+    }
+
+    function createMirroredStagePoint(originalItem) {
+        const mirroredItem = JSON.parse(JSON.stringify(originalItem));
+        mirroredItem.id = crypto.randomUUID();
+        mirroredItem.name = originalItem.name + "_mirrored";
+        mirroredItem.location = getMirroredLocation(originalItem.location);
+        originalItem.mirroredId = mirroredItem.id;
+        mirroredItem.mirroredId = originalItem.id;
+        return mirroredItem;
+    }
+
+    function createMirroredAction(originalAction) {
+        const mirroredAction = JSON.parse(JSON.stringify(originalAction));
+        mirroredAction.id = crypto.randomUUID();
+        originalAction.mirroredId = mirroredAction.id;
+        mirroredAction.mirroredId = originalAction.id;
+        const data = mirroredAction.data;
+        if (data.location) data.location = getMirroredLocation(data.location);
+        if (data.endLocation) data.endLocation = getMirroredLocation(data.endLocation);
+        if (data.shape) {
+            if (data.shape.start) data.shape.start = getMirroredLocation(data.shape.start);
+            if (data.shape.end) data.shape.end = getMirroredLocation(data.shape.end);
+            if (data.shape.centre) data.shape.centre = getMirroredLocation(data.shape.centre);
+        }
+        return mirroredAction;
+    }
+
+    function updateStageEditor() {
+        const container = document.getElementById('stage-editor-container');
+        container.innerHTML = '';
+        if (!showData.stage) return;
+
+        const allGroupNames = getAllGroupNames();
+
+        const createEditorForItem = (item, type) => {
+            if (item.groups && !Array.isArray(item.groups)) {
+                item.groups = Object.values(item.groups);
+            } else if (!item.groups) {
+                item.groups = [];
+            }
+
+            const itemEl = document.createElement('div');
+            itemEl.className = 'stage-item';
+            if (item.id === selectedStageObjectUUID) {
+                itemEl.classList.add('selected');
+            }
+            itemEl.dataset.uuid = item.id;
+
+            itemEl.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-lg">${type.slice(0,-1)}</span>
+                    <button data-delete-uuid="${item.id}" class="text-red-400 hover:text-red-200 font-bold">✕</button>
+                </div>
+                <div class="space-y-2">
+                    <div>
+                        <label class="text-xs text-gray-400">Name</label>
+                        <input type="text" value="${item.name}" data-prop="name" class="form-input p-1 text-sm w-full">
+                    </div>
+                    <div class="autocomplete-container">
+                        <label class="text-xs text-gray-400">Groups (comma-separated)</label>
+                        <input type="text" value="${item.groups.join(', ')}" data-prop="groups" class="form-input p-1 text-sm w-full group-input">
+                    </div>
+                     <div class="text-xs text-gray-400 mt-1">
+                        Pos: ${item.location.x.toFixed(1)}, ${item.location.y.toFixed(1)}, ${item.location.z.toFixed(1)}
+                    </div>
+                </div>
+            `;
+
+            itemEl.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'INPUT' && !e.target.closest('button')) {
+                    deselectAll();
+                    selectedStageObjectUUID = item.id;
+                    updateUIFromData(false);
+                }
+            });
+
+            itemEl.querySelector(`[data-delete-uuid]`).addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm(`Delete stage object "${item.name}"?`)) {
+                    deleteStageObject(item.id);
+                }
+            });
+
+            itemEl.querySelectorAll('input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const prop = e.target.dataset.prop;
+                    let value = e.target.value;
+                    if (prop === 'groups') {
+                        value = value.split(',').map(s => s.trim()).filter(s => s);
+                    }
+                    item[prop] = value;
+                    commitChange();
+                });
+            });
+
+            const groupInput = itemEl.querySelector('.group-input');
+            const acContainer = itemEl.querySelector('.autocomplete-container');
+            groupInput.addEventListener('input', () => showAutocomplete(groupInput, allGroupNames, acContainer));
+            groupInput.addEventListener('focus', () => showAutocomplete(groupInput, allGroupNames, acContainer));
+            document.addEventListener('click', (e) => {
+                if (!acContainer.contains(e.target)) {
+                    const suggestions = acContainer.querySelector('.autocomplete-suggestions');
+                    if(suggestions) suggestions.remove();
+                }
+            });
+
+            container.appendChild(itemEl);
+        };
+
+        const stagePointTypes = ['lights', 'lasers', 'effectPoints'];
+        stagePointTypes.forEach(type => {
+            if (showData.stage[type]) {
+                showData.stage[type].forEach(item => createEditorForItem(item, type));
+            }
+        });
+    }
+
+    function deleteStageObject(uuid) {
+        const { item, type, index } = findStageObjectByUUID(uuid);
+        if (!item) return;
+
+        showData.stage[type].splice(index, 1);
+
+        if (item.mirroredId) {
+            const { type: mirroredType, index: mirroredIndex } = findStageObjectByUUID(item.mirroredId);
+            if (mirroredType) {
+                showData.stage[mirroredType].splice(mirroredIndex, 1);
+            }
+        }
+
+        if (selectedStageObjectUUID === uuid) {
+            selectedStageObjectUUID = null;
+        }
+        commitChange();
+    }
+
+    function getAllGroupNames() {
+        const names = new Set();
+        if (!showData.stage) return [];
+        const stagePointTypes = ['lasers', 'lights', 'effectPoints'];
+        stagePointTypes.forEach(type => {
+            if (showData.stage[type]) {
+                showData.stage[type].forEach(item => {
+                    if(Array.isArray(item.groups)) {
+                       item.groups.forEach(group => names.add(group));
+                    }
+                });
+            }
+        });
+        return [...names];
+    }
+
+    function showAutocomplete(input, suggestions, container) {
+        let currentSuggestions = container.querySelector('.autocomplete-suggestions');
+        if (currentSuggestions) currentSuggestions.remove();
+
+        const text = input.value.split(',').pop().trim().toLowerCase();
+        if (!text) return;
+
+        const filtered = suggestions.filter(s => s.toLowerCase().includes(text));
+        if (filtered.length === 0) return;
+
+        const suggestionsEl = document.createElement('div');
+        suggestionsEl.className = 'autocomplete-suggestions';
+
+        filtered.forEach(suggestion => {
+            const div = document.createElement('div');
+            div.className = 'autocomplete-suggestion';
+            div.textContent = suggestion;
+            div.onclick = (e) => {
+                e.stopPropagation();
+                let parts = input.value.split(',');
+                parts[parts.length - 1] = suggestion;
+                input.value = parts.join(',') + ', ';
+                suggestionsEl.remove();
+                input.focus();
+            };
+            suggestionsEl.appendChild(div);
+        });
+        container.appendChild(suggestionsEl);
+    }
+
+    function addActionAtCursor() {
+        showAddActionDialog(lastMouseCoords);
+    }
+
+    function onViewportMouseMove(event) {
+        const viewport = document.getElementById('viewport');
+        const rect = viewport.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const targetPlane = new THREE.Plane();
+        const planeTargetPoint = controls.target;
+        const cameraDirection = camera.getWorldDirection(new THREE.Vector3());
+        targetPlane.setFromNormalAndCoplanarPoint(cameraDirection.negate(), planeTargetPoint);
+        const intersectPoint = new THREE.Vector3();
+        raycaster.ray.intersectPlane(targetPlane, intersectPoint);
+        if (intersectPoint) {
+            lastMouseCoords.copy(intersectPoint);
+            const coordsDisplay = document.getElementById('coords-display');
+            coordsDisplay.textContent = `X: ${intersectPoint.x.toFixed(2)}, Y: ${intersectPoint.y.toFixed(2)}, Z: ${intersectPoint.z.toFixed(2)}`;
+        }
+    }
+
+    function setTransformMode(mode) {
+        transformControls.setMode(mode);
+        document.getElementById('move-mode-btn').classList.toggle('active', mode === 'translate');
+        document.getElementById('rotate-mode-btn').classList.toggle('active', mode === 'rotate');
+    }
+
+    function setArchEditMode(mode) {
+        archEditMode = mode;
+        document.getElementById('arch-start-btn').classList.toggle('active', mode === 'start');
+        document.getElementById('arch-end-btn').classList.toggle('active', mode === 'end');
+        document.getElementById('arch-height-btn').classList.toggle('active', mode === 'height');
+
+        const [uuid] = selectedActionUUIDs;
+        const { action } = findActionByUUID(uuid);
+        if (!action || action.data.shape?.type !== 'arch') return;
+
+        const shape = action.data.shape;
+        let targetProxy;
+        if (mode === 'start') {
+            transformProxyArchStart.position.copy(shape.start);
+            targetProxy = transformProxyArchStart;
+        } else if (mode === 'end') {
+            transformProxyArchEnd.position.copy(shape.end);
+            targetProxy = transformProxyArchEnd;
+        } else {
+            const start = new THREE.Vector3(shape.start.x, shape.start.y, shape.start.z);
+            const end = new THREE.Vector3(shape.end.x, shape.end.y, shape.end.z);
+            const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+            mid.y += shape.height;
+            transformProxyArchHeight.position.copy(mid);
+            targetProxy = transformProxyArchHeight;
+        }
+        transformControls.attach(targetProxy);
+    }
+
+    function setAreaEditMode(mode) {
+        areaEditMode = mode;
+        document.getElementById('area-pos1-btn').classList.toggle('active', mode === 'pos1');
+        document.getElementById('area-pos2-btn').classList.toggle('active', mode === 'pos2');
+
+        const [uuid] = selectedActionUUIDs;
+        const { action } = findActionByUUID(uuid);
+        if (!action || action.data.effect?.type !== 'area') return;
+
+        const effect = action.data.effect;
+        let targetProxy;
+        if (mode === 'pos1') {
+            transformProxyAreaPos1.position.copy(effect.pos1);
+            targetProxy = transformProxyAreaPos1;
+        } else {
+            transformProxyAreaPos2.position.copy(effect.pos2);
+            targetProxy = transformProxyAreaPos2;
+        }
+        transformControls.attach(targetProxy);
+    }
+
+    function updateSelectionVisuals() {
+        selectionVisuals.clear();
+        locationMarkers.children.forEach(marker => marker.visible = true);
+
+        if (selectedActionUUIDs.size !== 1) return;
+
+        const [uuid] = selectedActionUUIDs;
+        const { action } = findActionByUUID(uuid);
+        if (!action) return;
+
+        const markerToHide = locationMarkers.children.find(m => m.userData.action.id === uuid);
+        if (markerToHide) markerToHide.visible = false;
+
+        const data = action.data;
+        const visMaterial = new THREE.LineBasicMaterial({ color: 0x60a5fa, fog: false });
+        const visMaterialDashed = new THREE.LineDashedMaterial({ color: 0xffffff, dashSize: 1, gapSize: 0.5, fog: false });
+        const visMaterialTransparent = new THREE.MeshBasicMaterial({
+            color: 0x60a5fa,
+            transparent: true,
+            opacity: 0.25,
+            side: THREE.DoubleSide,
+            fog: false
+        });
+        const visPointsMaterial = new THREE.PointsMaterial({ color: 0x60a5fa, size: 0.15, fog: false });
+
+        if (data.moveTime && data.endLocation && (data.location || data.shape?.centre || data.shape?.start)) {
+            const startLoc = data.location || data.shape?.centre || data.shape?.start;
+            const start = new THREE.Vector3(startLoc.x, startLoc.y, startLoc.z);
+            const end = new THREE.Vector3(data.endLocation.x, data.endLocation.y, data.endLocation.z);
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([start, end]);
+            const line = new THREE.Line(lineGeo, visMaterialDashed);
+            line.computeLineDistances();
+            selectionVisuals.add(line);
+        }
+
+        if (action.type === 'particle_shape' && data.shape) {
+             const shape = data.shape;
+            switch (shape.type) {
+                case 'line': {
+                    const start = new THREE.Vector3(shape.start.x, shape.start.y, shape.start.z);
+                    const end = new THREE.Vector3(shape.end.x, shape.end.y, shape.end.z);
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints([start, end]);
+                    selectionVisuals.add(new THREE.Line(lineGeo, visMaterial));
+                    break;
+                }
+                case 'arch': {
+                    const start = new THREE.Vector3(shape.start.x, shape.start.y, shape.start.z);
+                    const end = new THREE.Vector3(shape.end.x, shape.end.y, shape.end.z);
+                    const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                    mid.y += shape.height;
+                    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+                    const points = curve.getPoints(50);
+                    const archGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    selectionVisuals.add(new THREE.Line(archGeo, visMaterial));
+                    break;
+                }
+                case 'circle': {
+                    const points = [];
+                    const segments = 64;
+                    for (let i = 0; i <= segments; i++) {
+                        const theta = (i / segments) * Math.PI * 2;
+                        points.push(new THREE.Vector3(Math.cos(theta) * shape.radius, Math.sin(theta) * shape.radius, 0));
+                    }
+                    const circleGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    const circle = new THREE.LineLoop(circleGeo, visMaterial);
+                    circle.position.set(shape.centre.x, shape.centre.y, shape.centre.z);
+                    if (shape.rotation) {
+                         circle.rotation.set(
+                            THREE.MathUtils.degToRad(shape.rotation.pitch),
+                            THREE.MathUtils.degToRad(shape.rotation.yaw),
+                            THREE.MathUtils.degToRad(shape.rotation.roll)
+                        );
+                    }
+                    selectionVisuals.add(circle);
+                    break;
+                }
+                case 'sphere': {
+                    const sphereGeo = new THREE.SphereGeometry(shape.radius, 16, 8);
+                    const spherePoints = new THREE.Points(sphereGeo, visPointsMaterial);
+                    spherePoints.position.set(shape.centre.x, shape.centre.y, shape.centre.z);
+                    selectionVisuals.add(spherePoints);
+                    break;
+                }
+                 case 'hemisphere': {
+                    const hemisphereGeo = new THREE.SphereGeometry(shape.radius, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+                    const hemispherePoints = new THREE.Points(hemisphereGeo, visPointsMaterial);
+                    hemispherePoints.position.set(shape.centre.x, shape.centre.y, shape.centre.z);
+                     if (shape.rotation) {
+                         hemispherePoints.rotation.set(
+                            THREE.MathUtils.degToRad(shape.rotation.pitch),
+                            THREE.MathUtils.degToRad(shape.rotation.yaw),
+                            THREE.MathUtils.degToRad(shape.rotation.roll)
+                        );
+                    }
+                    selectionVisuals.add(hemispherePoints);
+                    break;
+                }
+                case 'cube': {
+                    const scale = shape.scale || {x:1, y:1, z:1};
+                    const cubeGeo = new THREE.BoxGeometry(scale.x, scale.y, scale.z);
+                    const wireframeGeo = new THREE.EdgesGeometry(cubeGeo);
+                    const cube = new THREE.LineSegments(wireframeGeo, visMaterial);
+                    cube.position.set(shape.centre.x, shape.centre.y, shape.centre.z);
+                    if (shape.rotation) {
+                         cube.rotation.set(
+                            THREE.MathUtils.degToRad(shape.rotation.pitch),
+                            THREE.MathUtils.degToRad(shape.rotation.yaw),
+                            THREE.MathUtils.degToRad(shape.rotation.roll)
+                        );
+                    }
+                    selectionVisuals.add(cube);
+                    break;
+                }
+            }
+        } else if (action.type === 'particle_effect' && data.effect) {
+             const effect = data.effect;
+             switch (effect.type) {
+                case 'bust': {
+                    const bustGeo = new THREE.SphereGeometry(effect.radius || 1, 16, 8);
+                    const sphere = new THREE.Mesh(bustGeo, visMaterialTransparent);
+                    sphere.position.set(effect.location.x, effect.location.y, effect.location.z);
+                    if(effect.scale) sphere.scale.copy(effect.scale);
+                    selectionVisuals.add(sphere);
+                    break;
+                }
+                case 'area': {
+                    const pos1 = new THREE.Vector3(effect.pos1.x, effect.pos1.y, effect.pos1.z);
+                    const pos2 = new THREE.Vector3(effect.pos2.x, effect.pos2.y, effect.pos2.z);
+                    const size = new THREE.Vector3().subVectors(pos2, pos1).abs();
+                    const center = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+                    const areaGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
+                    const box = new THREE.Mesh(areaGeo, visMaterialTransparent);
+                    box.position.copy(center);
+                    selectionVisuals.add(box);
+                    break;
+                }
+                 case 'laser': {
+                    const start = new THREE.Vector3(effect.start.x, effect.start.y, effect.start.z);
+                    const end = new THREE.Vector3(effect.end.x, effect.end.y, effect.end.z);
+                    const laserGeo = new THREE.BufferGeometry().setFromPoints([start, end]);
+                    selectionVisuals.add(new THREE.Line(laserGeo, visMaterial));
+                    break;
+                 }
+             }
+        } else if ((action.type === 'particle_text' || action.type === 'display_text') && data.text && font) {
+            const textGeo = new THREE.TextGeometry(data.text, { font, size: data.size, height: 0.1 });
+            textGeo.center();
+            const textMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa });
+            const textMesh = new THREE.Mesh(textGeo, textMat);
+            textMesh.position.copy(data.location);
+            if(data.rotation) textMesh.rotation.set(THREE.MathUtils.degToRad(data.rotation.pitch), THREE.MathUtils.degToRad(data.rotation.yaw), THREE.MathUtils.degToRad(data.rotation.roll));
+            selectionVisuals.add(textMesh);
+
+            if(data.endLocation) {
+                 const textMeshEnd = textMesh.clone();
+                 textMeshEnd.position.copy(data.endLocation);
+                 if(data.endRotation) textMeshEnd.rotation.set(THREE.MathUtils.degToRad(data.endRotation.pitch), THREE.MathUtils.degToRad(data.endRotation.yaw), THREE.MathUtils.degToRad(data.endRotation.roll));
+                 selectionVisuals.add(textMeshEnd);
+            }
+        }
+    }
+
+    // --- Effect Library ---
+    function saveEffectLibrary() {
+        localStorage.setItem('fireworksEffectLibrary', JSON.stringify(effectLibrary));
+    }
+
+    function loadEffectLibrary() {
+        const saved = localStorage.getItem('fireworksEffectLibrary');
+        if (saved) {
+            effectLibrary = JSON.parse(saved);
+        }
+        renderEffectLibrary();
+    }
+
+    function saveSelectedEffectToLibrary() {
+        if (selectedActionUUIDs.size !== 1) {
+            alert("Please select a single particle shape or effect to save.");
+            return;
+        }
+        const [uuid] = selectedActionUUIDs;
+        const { action } = findActionByUUID(uuid);
+        if (!action || (action.type !== 'particle_shape' && action.type !== 'particle_effect')) {
+             alert("Only particle shapes or effects can be saved to the library.");
+            return;
+        }
+
+        const name = prompt("Enter a name for this effect:", "New Effect");
+        if (!name) return;
+
+        effectLibrary.push({ name, type: action.type, data: JSON.parse(JSON.stringify(action.data)) });
+        saveEffectLibrary();
+        renderEffectLibrary();
+    }
+
+    function renderEffectLibrary() {
+        const list = document.getElementById('effect-library-list');
+        list.innerHTML = '';
+        effectLibrary.forEach((effect, index) => {
+            const item = document.createElement('div');
+            item.className = 'library-item';
+            item.textContent = effect.name;
+            item.draggable = true;
+            item.addEventListener('dragstart', e => {
+                e.dataTransfer.setData('text/plain', index);
+            });
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '✕';
+            deleteBtn.className = 'bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full text-xs';
+            deleteBtn.onclick = () => {
+                if(confirm(`Delete "${effect.name}" from the library?`)) {
+                    effectLibrary.splice(index, 1);
+                    saveEffectLibrary();
+                    renderEffectLibrary();
+                }
+            };
+            item.appendChild(deleteBtn);
+            list.appendChild(item);
+        });
+    }
+
+    function handleViewportDrop(event) {
+        event.preventDefault();
+        const index = parseInt(event.dataTransfer.getData('text/plain'));
+        if (isNaN(index) || index >= effectLibrary.length) return;
+
+        const effect = JSON.parse(JSON.stringify(effectLibrary[index]));
+        const viewport = document.getElementById('viewport');
+        const rect = viewport.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersectPoint = new THREE.Vector3();
+        const plane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+        raycaster.ray.intersectPlane(plane, intersectPoint);
+
+        if (intersectPoint) {
+            const newAction = effect;
+            newAction.id = crypto.randomUUID();
+
+            const dropLoc = {
+                x: parseFloat(intersectPoint.x.toFixed(2)),
+                y: parseFloat(intersectPoint.y.toFixed(2)),
+                z: parseFloat(intersectPoint.z.toFixed(2))
+            };
+
+            const primaryLoc = newAction.data.location || newAction.data.shape?.start || newAction.data.shape?.centre || newAction.data.effect?.location || newAction.data.effect?.pos1;
+            const offset = new THREE.Vector3().subVectors(dropLoc, primaryLoc);
+
+            const applyOffset = (loc) => {
+                if (loc) {
+                    loc.x += offset.x;
+                    loc.y += offset.y;
+                    loc.z += offset.z;
+                }
+            };
+
+            applyOffset(newAction.data.location);
+            applyOffset(newAction.data.endLocation);
+            if (newAction.data.shape) {
+                applyOffset(newAction.data.shape.start);
+                applyOffset(newAction.data.shape.end);
+                applyOffset(newAction.data.shape.centre);
+            }
+             if (newAction.data.effect) {
+                applyOffset(newAction.data.effect.location);
+                applyOffset(newAction.data.effect.start);
+                applyOffset(newAction.data.effect.end);
+                applyOffset(newAction.data.effect.pos1);
+                applyOffset(newAction.data.effect.pos2);
+            }
+
+
+            const tick = Math.floor(wavesurfer.getCurrentTime() * 20);
+            if (!showData.frames) showData.frames = {};
+            if (!showData.frames[tick]) showData.frames[tick] = { actions: [] };
+            showData.frames[tick].actions.push(newAction);
+            commitChange();
+        }
+    }
+
+    // --- Camera Path Functions ---
+    function drawCameraPathEditor() {
+        const container = document.getElementById('camera-path-editor-container');
+        container.innerHTML = '';
+        if (!showData.cameraMovements) {
+            showData.cameraMovements = [];
+        }
+
+        showData.cameraMovements.sort((a, b) => a.tick - b.tick);
+
+        showData.cameraMovements.forEach((point, index) => {
+            const itemEl = document.createElement('div');
+            itemEl.className = 'path-item p-3 rounded-lg';
+            if (index === selectedCameraPointIndex) {
+                itemEl.classList.add('selected');
+            }
+            itemEl.dataset.index = index;
+
+            itemEl.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <span class="font-bold text-lg">Point ${index + 1}</span>
+                    <button data-delete-index="${index}" class="text-red-400 hover:text-red-200 font-bold">✕</button>
+                </div>
+                <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div>
+                        <label class="text-xs text-gray-400">Tick</label>
+                        <input type="number" value="${point.tick}" data-prop="tick" class="form-input p-1 w-full">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400">Interpolation</label>
+                        <select data-prop="interpolation" class="form-select p-1 w-full">
+                            <option value="linear" ${point.interpolation === 'linear' ? 'selected' : ''}>Linear</option>
+                            <option value="easeIn" ${point.interpolation === 'easeIn' ? 'selected' : ''}>Ease In</option>
+                            <option value="easeOut" ${point.interpolation === 'easeOut' ? 'selected' : ''}>Ease Out</option>
+                            <option value="easeInOut" ${point.interpolation === 'easeInOut' ? 'selected' : ''}>Ease In Out</option>
+                            <option value="catmullRom" ${point.interpolation === 'catmullRom' ? 'selected' : ''}>Catmull-Rom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400">X</label>
+                        <input type="number" step="0.1" value="${point.location.x.toFixed(2)}" data-prop="location.x" class="form-input p-1 w-full">
+                    </div>
+                     <div>
+                        <label class="text-xs text-gray-400">Y</label>
+                        <input type="number" step="0.1" value="${point.location.y.toFixed(2)}" data-prop="location.y" class="form-input p-1 w-full">
+                    </div>
+                     <div>
+                        <label class="text-xs text-gray-400">Z</label>
+                        <input type="number" step="0.1" value="${point.location.z.toFixed(2)}" data-prop="location.z" class="form-input p-1 w-full">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400">Yaw</label>
+                        <input type="number" step="0.1" value="${point.rotation.yaw.toFixed(2)}" data-prop="rotation.yaw" class="form-input p-1 w-full">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400">Pitch</label>
+                        <input type="number" step="0.1" value="${point.rotation.pitch.toFixed(2)}" data-prop="rotation.pitch" class="form-input p-1 w-full">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-400">Roll</label>
+                        <input type="number" step="0.1" value="${point.rotation.roll.toFixed(2)}" data-prop="rotation.roll" class="form-input p-1 w-full">
+                    </div>
+                </div>
+            `;
+
+            itemEl.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('button')) {
+                    deselectAll();
+                    selectedCameraPointIndex = showData.cameraMovements.findIndex(p => p === point);
+                    updateUIFromData(false);
+                }
+            });
+
+            itemEl.querySelector(`[data-delete-index]`).addEventListener('click', (e) => {
+                e.stopPropagation();
+                const originalIndex = showData.cameraMovements.findIndex(p => p === point);
+                deleteCameraPoint(originalIndex);
+            });
+
+            itemEl.querySelectorAll('input, select').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const originalIndex = showData.cameraMovements.findIndex(p => p === point);
+                    const propPath = e.target.dataset.prop;
+                    const value = (input.type === 'number') ? parseFloat(e.target.value) : e.target.value;
+
+                    const keys = propPath.split('.');
+                    let current = showData.cameraMovements[originalIndex];
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        current = current[keys[i]];
+                    }
+                    current[keys[keys.length - 1]] = value;
+
+                    commitChange();
+                });
+            });
+
+            container.appendChild(itemEl);
+        });
+    }
+
+    function drawCameraPath() {
+        cameraPathVisuals.clear();
+        if (!showData.cameraMovements || showData.cameraMovements.length < 2) return;
+
+        const sortedMovements = [...showData.cameraMovements].sort((a, b) => a.tick - b.tick);
+
+        const curvePoints = sortedMovements.map(p => new THREE.Vector3(p.location.x, p.location.y, p.location.z));
+        const curve = new THREE.CatmullRomCurve3(curvePoints, false, 'catmullrom', 0.5);
+
+        const totalDuration = sortedMovements[sortedMovements.length - 1].tick - sortedMovements[0].tick;
+        const segments = Math.max(100, totalDuration);
+        const pathGeometryPoints = curve.getPoints(segments);
+
+        if (pathGeometryPoints.length > 0) {
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xf87171, fog: false });
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(pathGeometryPoints);
+            const line = new THREE.Line(lineGeo, lineMat);
+            cameraPathVisuals.add(line);
+        }
+
+        const markerGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        sortedMovements.forEach(point => {
+            const originalIndex = showData.cameraMovements.findIndex(p => p === point);
+            const color = (originalIndex === selectedCameraPointIndex) ? 0xf87171 : 0xffffff;
+            const markerMat = new THREE.MeshBasicMaterial({ color });
+            const marker = new THREE.Mesh(markerGeo, markerMat);
+            marker.position.copy(point.location);
+            cameraPathVisuals.add(marker);
+        });
+    }
+
+
+    function addCameraPoint() {
+        if (!showData.cameraMovements) {
+            showData.cameraMovements = [];
+        }
+        const newPoint = {
+            location: {
+                x: parseFloat(camera.position.x.toFixed(3)),
+                y: parseFloat(camera.position.y.toFixed(3)),
+                z: parseFloat(camera.position.z.toFixed(3))
+            },
+            rotation: {
+                yaw: parseFloat((-THREE.MathUtils.radToDeg(camera.rotation.y)).toFixed(2)),
+                pitch: parseFloat(THREE.MathUtils.radToDeg(camera.rotation.x).toFixed(2)),
+                roll: parseFloat(THREE.MathUtils.radToDeg(camera.rotation.z).toFixed(2))
+            },
+            tick: parseInt(document.getElementById('tick-input').value) || 0,
+            interpolation: "linear"
+        };
+        showData.cameraMovements.push(newPoint);
+        deselectAll();
+        selectedCameraPointIndex = showData.cameraMovements.length - 1;
+        commitChange();
+    }
+
+    function deleteCameraPoint(index) {
+        if (showData.cameraMovements && showData.cameraMovements[index]) {
+            showData.cameraMovements.splice(index, 1);
+            if (selectedCameraPointIndex === index) {
+                selectedCameraPointIndex = -1;
+            } else if (selectedCameraPointIndex > index) {
+                selectedCameraPointIndex--;
+            }
+            commitChange();
+        }
+    }
+
+    // --- Particle Path Functions ---
+    function drawParticlePathEditor() {
+        const container = document.getElementById('particle-path-editor-container');
+        container.innerHTML = '';
+        if (!showData.particlePaths) return;
+
+        showData.particlePaths.forEach((path, pathIndex) => {
+            const pathEl = document.createElement('div');
+            pathEl.className = 'path-item';
+            if (selectedParticlePath.pathIndex === pathIndex && selectedParticlePath.pointIndex === -1) {
+                pathEl.classList.add('selected');
+            }
+            pathEl.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <input type="text" value="${path.name}" data-prop="name" class="form-input bg-transparent border-0 p-1 font-bold text-lg w-1/2">
+                    <button data-delete-path="${pathIndex}" class="text-red-400 hover:text-red-200 font-bold">✕</button>
+                </div>
+                <div class="autocomplete-container mt-2">
+                    <label class="text-xs text-gray-400">Default Particle Type</label>
+                    <input type="text" value="${path.particleType}" data-prop="particleType" class="form-input p-1 text-sm w-full particle-type-input">
+                </div>
+                <button data-add-point="${pathIndex}" class="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-lg text-xs">Add Point</button>
+            `;
+
+            pathEl.addEventListener('click', (e) => {
+                if (e.target.tagName !== 'INPUT' && !e.target.closest('button')) {
+                    deselectAll();
+                    selectedParticlePath.pathIndex = pathIndex;
+                    selectedParticlePath.pointIndex = -1;
+                    updateUIFromData(false);
+                }
+            });
+
+            path.points.sort((a,b) => a.tick - b.tick).forEach((point, pointIndex) => {
+                const originalPointIndex = path.points.findIndex(p => p === point);
+                const pointEl = document.createElement('div');
+                pointEl.className = 'point-item';
+                 if (selectedParticlePath.pathIndex === pathIndex && selectedParticlePath.pointIndex === originalPointIndex) {
+                    pointEl.classList.add('selected');
+                }
+                pointEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold">Point @ Tick ${point.tick}</span>
+                        <button data-delete-point-path="${pathIndex}" data-delete-point="${originalPointIndex}" class="text-red-400 hover:text-red-200 font-bold">✕</button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                        <div><label class="text-xs text-gray-400">Tick</label><input type="number" value="${point.tick}" data-path="${pathIndex}" data-point="${originalPointIndex}" data-prop="tick" class="form-input p-1 w-full"></div>
+                        <div><label class="text-xs text-gray-400">Height</label><input type="number" step="0.1" value="${point.height || 0}" data-path="${pathIndex}" data-point="${originalPointIndex}" data-prop="height" class="form-input p-1 w-full"></div>
+                        <div><label class="text-xs text-gray-400">X</label><input type="number" step="0.1" value="${point.location.x.toFixed(2)}" data-path="${pathIndex}" data-point="${originalPointIndex}" data-prop="location.x" class="form-input p-1 w-full"></div>
+                        <div><label class="text-xs text-gray-400">Y</label><input type="number" step="0.1" value="${point.location.y.toFixed(2)}" data-path="${pathIndex}" data-point="${originalPointIndex}" data-prop="location.y" class="form-input p-1 w-full"></div>
+                        <div><label class="text-xs text-gray-400">Z</label><input type="number" step="0.1" value="${point.location.z.toFixed(2)}" data-path="${pathIndex}" data-point="${originalPointIndex}" data-prop="location.z" class="form-input p-1 w-full"></div>
+                        <div class="col-span-2 autocomplete-container"><label class="text-xs text-gray-400">Particle Override (optional)</label><input type="text" value="${point.particleTypeOverride || ''}" data-path="${pathIndex}" data-point="${originalPointIndex}" data-prop="particleTypeOverride" class="form-input p-1 w-full particle-type-input"></div>
+                    </div>
+                `;
+                pointEl.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'INPUT' && !e.target.closest('button')) {
+                        deselectAll();
+                        selectedParticlePath.pathIndex = pathIndex;
+                        selectedParticlePath.pointIndex = originalPointIndex;
+                        updateUIFromData(false);
+                    }
+                });
+                pathEl.appendChild(pointEl);
+            });
+            container.appendChild(pathEl);
+        });
+
+        container.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const pathIdx = e.target.dataset.path;
+                const pointIdx = e.target.dataset.point;
+                const propPath = e.target.dataset.prop;
+                const value = (input.type === 'number') ? parseFloat(e.target.value) : e.target.value;
+
+                let target = pathIdx ? showData.particlePaths[pathIdx] : null;
+                if (target && pointIdx) target = target.points[pointIdx];
+
+                if (target) {
+                    const keys = propPath.split('.');
+                    let current = target;
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        current = current[keys[i]];
+                    }
+                    current[keys[keys.length - 1]] = value;
+                    commitChange();
+                }
+            });
+        });
+        container.querySelectorAll('[data-delete-path]').forEach(btn => btn.onclick = () => deleteParticlePath(parseInt(btn.dataset.deletePath)));
+        container.querySelectorAll('[data-add-point]').forEach(btn => btn.onclick = () => addParticlePathPoint(parseInt(btn.dataset.addPoint)));
+        container.querySelectorAll('[data-delete-point-path]').forEach(btn => btn.onclick = () => deleteParticlePathPoint(parseInt(btn.dataset.deletePointPath), parseInt(btn.dataset.deletePoint)));
+        container.querySelectorAll('.particle-type-input').forEach(input => {
+            const acContainer = input.closest('.autocomplete-container');
+            input.addEventListener('input', () => showAutocomplete(input, PARTICLE_LIST, acContainer));
+            input.addEventListener('focus', () => showAutocomplete(input, PARTICLE_LIST, acContainer));
+        });
+    }
+
+    function drawParticlePaths() {
+        particlePathVisuals.clear();
+        if (!showData.particlePaths) return;
+
+        showData.particlePaths.forEach((path, pathIndex) => {
+            const sortedPoints = [...path.points].sort((a, b) => a.tick - b.tick);
+            if (sortedPoints.length < 2) return;
+
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x10b981, fog: false });
+            const markerGeo = new THREE.SphereGeometry(0.3, 8, 4);
+
+            for (let i = 0; i < sortedPoints.length - 1; i++) {
+                const p1 = sortedPoints[i];
+                const p2 = sortedPoints[i+1];
+                const start = new THREE.Vector3(p1.location.x, p1.location.y, p1.location.z);
+                const end = new THREE.Vector3(p2.location.x, p2.location.y, p2.location.z);
+
+                if (p2.height > 0) {
+                    const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                    mid.y += p2.height;
+                    const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+                    const points = curve.getPoints(20);
+                    const archGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    particlePathVisuals.add(new THREE.Line(archGeo, lineMat));
+                } else {
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints([start, end]);
+                    particlePathVisuals.add(new THREE.Line(lineGeo, lineMat));
+                }
+            }
+
+            path.points.forEach((point, pointIndex) => {
+                const isSelected = selectedParticlePath.pathIndex === pathIndex && selectedParticlePath.pointIndex === pointIndex;
+                const markerMat = new THREE.MeshBasicMaterial({ color: isSelected ? 0x6ee7b7 : 0xffffff });
+                const marker = new THREE.Mesh(markerGeo, markerMat);
+                marker.position.copy(point.location);
+                particlePathVisuals.add(marker);
+            });
+        });
+    }
+
+    function addParticlePath() {
+        if (!showData.particlePaths) showData.particlePaths = [];
+        showData.particlePaths.push({
+            name: `New Path ${showData.particlePaths.length + 1}`,
+            particleType: "end_rod",
+            points: [
+                { location: {x:0,y:0,z:0}, tick: 0, height: 0 },
+                { location: {x:10,y:0,z:10}, tick: 100, height: 0 }
+            ]
+        });
+        commitChange();
+    }
+    function addParticlePathPoint(pathIndex) {
+        const path = showData.particlePaths[pathIndex];
+        if (!path) return;
+        const lastPoint = path.points.length > 0 ? path.points[path.points.length - 1] : { location: {x:0,y:0,z:0}, tick: 0 };
+        path.points.push({
+            location: { ...lastPoint.location, x: lastPoint.location.x + 5 },
+            tick: lastPoint.tick + 50,
+            height: 0
+        });
+        commitChange();
+    }
+    function deleteParticlePath(pathIndex) {
+        showData.particlePaths.splice(pathIndex, 1);
+        if (selectedParticlePath.pathIndex === pathIndex) deselectAll();
+        commitChange();
+    }
+    function deleteParticlePathPoint(pathIndex, pointIndex) {
+        const path = showData.particlePaths[pathIndex];
+        if (path && path.points[pointIndex]) {
+            path.points.splice(pointIndex, 1);
+            if (selectedParticlePath.pathIndex === pathIndex && selectedParticlePath.pointIndex === pointIndex) deselectAll();
+            commitChange();
+        }
+    }
+
+
+    // --- Interpolation Functions ---
+    const Interpolation = {
+        linear: (p0, p1, t) => {
+            const start = p0.location;
+            const end = p1.location;
+            return new THREE.Vector3(
+                start.x + (end.x - start.x) * t,
+                start.y + (end.y - start.y) * t,
+                start.z + (end.z - start.z) * t
+            );
+        },
+        easeIn: (p0, p1, t) => Interpolation.linear(p0, p1, t * t),
+        easeOut: (p0, p1, t) => Interpolation.linear(p0, p1, 1 - (1 - t) * (1 - t)),
+        easeInOut: (p0, p1, t) => Interpolation.linear(p0, p1, t * t * (3 - 2 * t)),
+        catmullRom: (p_1, p0, p1, p2, t) => {
+            const t2 = t * t;
+            const t3 = t2 * t;
+            const v_1 = new THREE.Vector3(p_1.location.x, p_1.location.y, p_1.location.z);
+            const v0 = new THREE.Vector3(p0.location.x, p0.location.y, p0.location.z);
+            const v1 = new THREE.Vector3(p1.location.x, p1.location.y, p1.location.z);
+            const v2 = new THREE.Vector3(p2.location.x, p2.location.y, p2.location.z);
+            const x = 0.5 * ((2 * v0.x) + (-v_1.x + v1.x) * t + (2 * v_1.x - 5 * v0.x + 4 * v1.x - v2.x) * t2 + (-v_1.x + 3 * v0.x - 3 * v1.x + v2.x) * t3);
+            const y = 0.5 * ((2 * v0.y) + (-v_1.y + v1.y) * t + (2 * v_1.y - 5 * v0.y + 4 * v1.y - v2.y) * t2 + (-v_1.y + 3 * v0.y - 3 * v1.y + v2.y) * t3);
+            const z = 0.5 * ((2 * v0.z) + (-v_1.z + v1.z) * t + (2 * v_1.z - 5 * v0.z + 4 * v1.z - v2.z) * t2 + (-v_1.z + 3 * v0.z - 3 * v1.z + v2.z) * t3);
+            return new THREE.Vector3(x, y, z);
+        },
+        linearRotation: (p0, p1, t) => {
+            let yawDiff = p1.rotation.yaw - p0.rotation.yaw;
+            if (yawDiff > 180) yawDiff -= 360;
+            if (yawDiff < -180) yawDiff += 360;
+            return {
+                yaw: p0.rotation.yaw + yawDiff * t,
+                pitch: p0.rotation.pitch + (p1.rotation.pitch - p0.rotation.pitch) * t,
+                roll: p0.rotation.roll + (p1.rotation.roll - p0.rotation.roll) * t,
+            };
+        },
+        easeInRotation: (p0, p1, t) => Interpolation.linearRotation(p0, p1, t * t),
+        easeOutRotation: (p0, p1, t) => Interpolation.linearRotation(p0, p1, 1 - (1 - t) * (1 - t)),
+        easeInOutRotation: (p0, p1, t) => Interpolation.linearRotation(p0, p1, t * t * (3 - 2 * t)),
+    };
+
+    function getInterpolatedCameraState(tick) {
+        const movements = [...showData.cameraMovements].sort((a,b) => a.tick - b.tick);
+        if (!movements || movements.length === 0) {
+            return {
+                position: new THREE.Vector3(0, 10, 50),
+                rotation: { yaw: 0, pitch: 0, roll: 0 }
+            };
+        }
+
+        let p1_index = movements.findIndex(p => p.tick >= tick);
+
+        if (p1_index === -1) {
+            const p = movements[movements.length - 1];
+            return { position: new THREE.Vector3(p.location.x, p.location.y, p.location.z), rotation: p.rotation };
+        }
+        if (p1_index === 0) {
+            const p = movements[0];
+            return { position: new THREE.Vector3(p.location.x, p.location.y, p.location.z), rotation: p.rotation };
+        }
+
+        const p1 = movements[p1_index];
+        const p0 = movements[p1_index - 1];
+
+        const duration = p1.tick - p0.tick;
+        const progress = duration > 0 ? (tick - p0.tick) / duration : 0;
+
+        let position, rotation;
+        const interpolationType = (p0.interpolation || 'linear').toLowerCase();
+
+        const rotInterpolationFunc = Interpolation[interpolationType + 'Rotation'] || Interpolation.linearRotation;
+        rotation = rotInterpolationFunc(p0, p1, progress);
+
+        if (interpolationType === "catmullrom") {
+            const p_minus_1 = movements[p1_index - 2] || p0;
+            const p_plus_1 = movements[p1_index + 1] || p1;
+            position = Interpolation.catmullRom(p_minus_1, p0, p1, p_plus_1, progress);
+        } else {
+            const posInterpolationFunc = Interpolation[interpolationType] || Interpolation.linear;
+            position = posInterpolationFunc(p0, p1, progress);
+        }
+
+        return { position, rotation };
+    }
+
+
+    // --- Start the application ---
+    init();
+</script>
+</body>
+</html>
