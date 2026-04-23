@@ -24,23 +24,29 @@ class StageManager {
     fun displayStage(stage: Stage, world: World) {
         // Clear any previously displayed stage elements first
         clearDisplay(world)
-
-        // Display Lights with Sea Lanterns
-        stage.lights.forEach { light ->
-            val location = Location(world, light.location.x, light.location.y, light.location.z)
-            spawnDisplayEntity(location, Material.SEA_LANTERN, light.name, light.groups)
+        if(stage.lights.count() !=0)
+        {
+            // Display Lights with Sea Lanterns
+            stage.lights.forEach { light ->
+                val location = Location(world, light.location.x, light.location.y, light.location.z)
+                spawnDisplayEntity(location, Material.SEA_LANTERN, light.name, light.groups)
+            }
         }
 
-        // Display Lasers with Beacons
-        stage.lasers.forEach { laser ->
-            val location = Location(world, laser.location.x, laser.location.y, laser.location.z)
-            spawnDisplayEntity(location, Material.BEACON, laser.name, laser.groups)
+        if(stage.lasers.count() !=0) {
+            // Display Lasers with Beacons
+            stage.lasers.forEach { laser ->
+                val location = Location(world, laser.location.x, laser.location.y, laser.location.z)
+                spawnDisplayEntity(location, Material.BEACON, laser.name, laser.groups)
+            }
         }
 
-        // Display Effect Points with Note Blocks
-        stage.effectPoints.forEach { effectPoint ->
-            val location = Location(world, effectPoint.location.x, effectPoint.location.y, effectPoint.location.z)
-            spawnDisplayEntity(location, Material.NOTE_BLOCK, effectPoint.name, effectPoint.groups)
+        if(stage.effectPoints.count() !=0) {
+            // Display Effect Points with Note Blocks
+            stage.effectPoints.forEach { effectPoint ->
+                val location = Location(world, effectPoint.location.x, effectPoint.location.y, effectPoint.location.z)
+                spawnDisplayEntity(location, Material.NOTE_BLOCK, effectPoint.name, effectPoint.groups)
+            }
         }
     }
 

@@ -66,7 +66,6 @@ class ShowManager(private val fireworkPlugin: MCFireworkShow) {
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>frames Loaded: <white>${frames.size}"))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total Action: <white>${getTotalActions(fireworkShow)}"))
         sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total time: <white>$biggestFrameSize <color:#b2c2d4>ticks"))
-        sender.sendMessage(text("<color:#4a628f>>></color> <color:#b2c2d4>Total Lasers: <white>${fireworkShow.stage.lasers.size} <color:#b2c2d4>Lasers"))
         currentShow=fireworkShow
 
         // Start playing music associated with the show

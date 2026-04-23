@@ -13,6 +13,9 @@
     <!-- Updated Wavesurfer Scripts -->
     <script src="https://unpkg.com/wavesurfer.js@7.7.5/dist/wavesurfer.min.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@7.7.5/dist/plugins/spectrogram.min.js"></script>
+    <!-- Schematic Support Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/nbt-js@1.0.3/nbt.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -343,6 +346,11 @@
                         class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
                     Export JSON
                 </button>
+                <input type="file" id="schematic-input" accept=".schem" class="hidden">
+                <button id="import-schematic-btn"
+                        class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300">
+                    Import Schematic
+                </button>
             </div>
         </div>
     </header>
@@ -360,6 +368,7 @@
                 <button id="move-mode-btn" class="viewport-btn active">Move</button>
                 <button id="rotate-mode-btn" class="viewport-btn">Rotate</button>
                 <button id="camera-view-btn" class="viewport-btn">Camera View</button>
+                <button id="go-to-center-btn" class="viewport-btn bg-teal-800 hover:bg-teal-700">Center View</button>
                 <div id="arch-controls" class="hidden flex-col space-y-2">
                     <button id="arch-start-btn" class="viewport-btn">Edit Start</button>
                     <button id="arch-end-btn" class="viewport-btn">Edit End</button>
@@ -426,10 +435,12 @@
 
                 <div id="tab-paths" class="tab-content flex-grow flex-col">
                     <h2 class="text-xl font-semibold mb-2">Particle Paths</h2>
-                    <button id="add-particle-path-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300 mb-4">
+                    <button id="add-particle-path-btn"
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition duration-300 mb-4">
                         Add New Particle Path
                     </button>
-                    <div id="particle-path-editor-container" class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-md"></div>
+                    <div id="particle-path-editor-container"
+                         class="flex-grow overflow-y-auto bg-gray-900 p-2 rounded-md"></div>
                 </div>
 
                 <div id="tab-library" class="tab-content flex-grow flex-col">
@@ -540,6 +551,7 @@
 
 
 <script>
+    const schematicGroup = new THREE.Group();
     // --- Global Variables ---
     let scene, camera, renderer, controls, transformControls, font;
     let showData = {
@@ -694,6 +706,7 @@
         scene.add(selectionVisuals);
         scene.add(cameraPathVisuals);
         scene.add(particlePathVisuals);
+        scene.add(schematicGroup);
 
         const ambientLight = new THREE.AmbientLight(0xcccccc, 1);
         scene.add(ambientLight);
@@ -767,7 +780,7 @@
         document.getElementById('audio-input').addEventListener('change', handleAudioUpload);
         document.getElementById('export-json-btn').addEventListener('click', exportJson);
         document.getElementById('json-editor').addEventListener('input', syncJsonToData);
-
+        document.getElementById('go-to-center-btn').addEventListener('click', goToStageCenter);
         document.getElementById('play-btn').addEventListener('click', () => wavesurfer.playPause());
         document.getElementById('pause-btn').addEventListener('click', () => wavesurfer.pause());
         document.getElementById('stop-btn').addEventListener('click', () => {
@@ -781,6 +794,40 @@
         document.getElementById('add-camera-point-btn').addEventListener('click', addCameraPoint);
         document.getElementById('add-particle-path-btn').addEventListener('click', addParticlePath);
 
+        document.getElementById('import-schematic-btn').addEventListener('click', () => {
+            document.getElementById('schematic-input').click();
+        });
+
+        document.getElementById('schematic-input').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                try {
+                    // 1. Decompress GZip
+                    const decompressed = pako.ungzip(new Uint8Array(event.target.result));
+                    const nbtData = nbt.parse(decompressed).value;
+
+                    // .schem files store dimensions in Width, Height, Length
+                    const width = nbtData.Width.value || nbtData.Width;
+                    const height = nbtData.Height.value || nbtData.Height;
+                    const length = nbtData.Length.value || nbtData.Length;
+
+                    const rawBlockData = nbtData.BlockData.value || nbtData.BlockData;
+                    const decodedIndices = decodeVarIntArray(rawBlockData);
+
+                    // 3. Visualize
+                    renderSchematicSimple(width, height, length, decodedIndices);
+
+                    alert(`Imported ${file.name} (${width}x${height}x${length})`);
+                } catch (err) {
+                    console.error(err);
+                    alert("Error parsing .schem file. Ensure it is a valid WorldEdit Sponge schematic.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
 
         ['stage-center-x', 'stage-center-y', 'stage-center-z'].forEach(id => {
             document.getElementById(id).addEventListener('change', updateStageCenter);
@@ -902,10 +949,11 @@
                 if (!showData.cameraMovements) showData.cameraMovements = [];
                 if (!showData.particlePaths) showData.particlePaths = [];
 
-                if (showData.stage?.location) {
+                if (showData.stage && showData.stage.location) {
                     document.getElementById('stage-center-x').value = showData.stage.location.x;
                     document.getElementById('stage-center-y').value = showData.stage.location.y;
                     document.getElementById('stage-center-z').value = showData.stage.location.z;
+                    updateStageCenter();
                 }
                 updateStageCenter();
                 commitChange();
@@ -975,14 +1023,24 @@
     }
 
     // --- Data Parsing & 3D Visualization ---
-    function updateStageCenter() {
-        const x = parseFloat(document.getElementById('stage-center-x').value);
-        const y = parseFloat(document.getElementById('stage-center-y').value);
-        const z = parseFloat(document.getElementById('stage-center-z').value);
-        if ([x,y,z].some(isNaN)) return;
-        controls.target.set(x, y, z);
-        gridHelper.position.set(x, y, z);
-    }
+function updateStageCenter() {
+    const x = parseFloat(document.getElementById('stage-center-x').value) || 0;
+    const y = parseFloat(document.getElementById('stage-center-y').value) || 0;
+    const z = parseFloat(document.getElementById('stage-center-z').value) || 0;
+
+    // 1. Update the Data Object for JSON storage
+    if (!showData.stage) showData.stage = {};
+    showData.stage.location = { x, y, z };
+
+    // 2. Move the GridHelper to the new location
+    gridHelper.position.set(x, y, z);
+
+    // 3. Update the camera's pivot point
+    controls.target.set(x, y, z);
+
+    // Sync the JSON editor text area
+    document.getElementById('json-editor').value = JSON.stringify(showData, null, 2);
+}
 
     function parseShowData() {
         stageObjects.clear();
@@ -1736,6 +1794,37 @@
         parent.appendChild(fieldset);
         redraw(values);
     }
+
+function goToStageCenter() {
+    const x = parseFloat(document.getElementById('stage-center-x').value) || 0;
+    const y = parseFloat(document.getElementById('stage-center-y').value) || 0;
+    const z = parseFloat(document.getElementById('stage-center-z').value) || 0;
+
+    // Update OrbitControls target
+    controls.target.set(x, y, z);
+
+    // Move camera to a nice viewing distance relative to center
+    camera.position.set(x, y + 20, z + 50);
+    controls.update();
+}
+
+// Updated updateStageCenter to save to JSON
+function updateStageCenter() {
+    const x = parseFloat(document.getElementById('stage-center-x').value);
+    const y = parseFloat(document.getElementById('stage-center-y').value);
+    const z = parseFloat(document.getElementById('stage-center-z').value);
+    if ([x, y, z].some(isNaN)) return;
+
+    // Ensure stage object exists and save coordinates
+    if (!showData.stage) showData.stage = {};
+    showData.stage.location = { x, y, z };
+
+    controls.target.set(x, y, z);
+    gridHelper.position.set(x, y, z);
+
+    // Sync with JSON editor
+    document.getElementById('json-editor').value = JSON.stringify(showData, null, 2);
+}
 
     function createColorPickerArray(parent, key, values, id) {
         const fieldset = document.createElement('fieldset');
@@ -3577,6 +3666,62 @@
     }
 
 
+function renderSchematicSimple(w, h, l, blocks) {
+    schematicGroup.clear();
+
+    // To stay performant, we use BufferGeometry for a point cloud
+    // rather than creating thousands of separate Cube meshes.
+    const positions = [];
+    const colors = [];
+    const color = new THREE.Color();
+
+    let i = 0;
+    for (let y = 0; y < h; y++) {
+        for (let z = 0; z < l; z++) {
+            for (let x = 0; x < w; x++) {
+                const paletteIndex = blocks[x + z * width + y * width * length];
+                if (paletteIndex !== 0) {
+                    positions.push(x, y, z);
+                    // Simple coloring based on height to give it depth
+                    color.setHSL(y / h, 0.5, 0.5);
+                    colors.push(color.r, color.g, color.b);
+                }
+            }
+        }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({ size: 0.5, vertexColors: true });
+    const points = new THREE.Points(geometry, material);
+
+    // Center it on the stage
+    const sx = parseFloat(document.getElementById('stage-center-x').value) || 0;
+    const sz = parseFloat(document.getElementById('stage-center-z').value) || 0;
+    points.position.set(sx - (w/2), 0, sz - (l/2));
+
+    schematicGroup.add(points);
+}
+
+function decodeVarIntArray(byteArray) {
+    const decoded = [];
+    let i = 0;
+    while (i < byteArray.length) {
+        let value = 0;
+        let varintLength = 0;
+        while (true) {
+            const byte = byteArray[i++];
+            value |= (byte & 0x7F) << (varintLength * 7);
+            if (varintLength > 5) throw new Error("VarInt too big");
+            if ((byte & 0x80) === 0) break;
+            varintLength++;
+        }
+        decoded.push(value);
+    }
+    return decoded;
+}
     // --- Start the application ---
     init();
 </script>

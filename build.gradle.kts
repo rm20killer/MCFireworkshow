@@ -20,6 +20,7 @@ val gsonVersion: String by project
 val mcCoroutineVersion: String by project
 
 repositories {
+    maven("https://nexus.fruxz.dev/repository/public/")
     maven("https://nexus.modlabs.cc/repository/maven-mirrors/")
     maven(url = "https://repo.papermc.io/repository/maven-public/")
     maven("https://maven.enginehub.org/repo/")

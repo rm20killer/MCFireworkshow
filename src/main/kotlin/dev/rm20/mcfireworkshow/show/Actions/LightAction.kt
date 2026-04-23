@@ -16,12 +16,21 @@ class LightAction {
             lightData.location.z,
         )
 
-        Bukkit.getLogger().info("changing lit of: $location which is ${(location.block.getType())}")
-        if(location.block.getType()==Material.REDSTONE_LAMP)
+        Bukkit.getLogger().info("changing lit of: $location which is ${(location.block.type)}")
+        if(location.block.type ==Material.REDSTONE_LAMP)
         {
             val data = location.block.blockData as org.bukkit.block.data.Lightable
             data.isLit = lightData.lit
             location.block.blockData = data
+        }
+
+        if(location.block.type == Material.SEA_LANTERN && !lightData.lit)
+        {
+            location.block.type = Material.PRISMARINE
+        }
+        if(location.block.type == Material.PRISMARINE && lightData.lit)
+        {
+            location.block.type = Material.PRISMARINE
         }
 
     }

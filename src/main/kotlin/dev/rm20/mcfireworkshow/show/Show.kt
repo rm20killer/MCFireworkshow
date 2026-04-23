@@ -18,6 +18,7 @@ data class Show(
     val frames: Map<String, Frame>,
     val cameraMovements: List<CameraMovement>? = null, // Optional list of camera movements
     val particlePaths: List<ParticlePath>? = null
+
 )
 data class CameraMovement(
     val location: Location,
